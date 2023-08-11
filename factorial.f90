@@ -1,11 +1,11 @@
 function Factorial(n) result(fact)
     integer, intent(in) :: n
-    integer :: fact, i
+    real(kind=8) :: fact
+    integer :: i
     
-    fact = 1
-    i = 1
-    do while (i <= n)
+    fact = 1.0d0  ! Using double precision literal
+    do i = 1, n
         fact = fact * i
-        i = i + 1
     end do
 end function Factorial
+
