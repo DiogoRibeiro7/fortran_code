@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(fortran_epidemiology VERSION 0.3.0 LANGUAGES Fortran)
+project(fortran_epidemiology VERSION 0.4.0 LANGUAGES Fortran)
 
 include(CTest)
 find_package(LAPACK REQUIRED)
@@ -29,6 +29,7 @@ add_library(epidemiology
     src/epidemiology_m.f90
     src/transmission_m.f90
     src/seir_m.f90
+    src/seirs_m.f90
 )
 enable_strict_fortran(epidemiology)
 
@@ -51,6 +52,10 @@ add_executable(seir_intervention_example app/seir_intervention_example.f90)
 target_link_libraries(seir_intervention_example PRIVATE epidemiology)
 enable_strict_fortran(seir_intervention_example)
 
+add_executable(seirs_vaccination_example app/seirs_vaccination_example.f90)
+target_link_libraries(seirs_vaccination_example PRIVATE epidemiology)
+enable_strict_fortran(seirs_vaccination_example)
+
 if(BUILD_TESTING)
     add_executable(test_factorial test/test_factorial.f90)
     target_link_libraries(test_factorial PRIVATE fortran_numerics)
@@ -71,4 +76,9 @@ if(BUILD_TESTING)
     target_link_libraries(test_seir PRIVATE epidemiology)
     enable_strict_fortran(test_seir)
     add_test(NAME seir COMMAND test_seir)
+
+    add_executable(test_seirs test/test_seirs.f90)
+    target_link_libraries(test_seirs PRIVATE epidemiology)
+    enable_strict_fortran(test_seirs)
+    add_test(NAME seirs COMMAND test_seirs)
 endif()
