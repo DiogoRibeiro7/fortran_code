@@ -2,7 +2,7 @@
 
 A compact epidemiological modelling codebase written in modern Fortran.
 
-The project is developed as a numerically explicit, testable implementation of classical and computational epidemiology. The current scientific core includes deterministic SIR and SEIR models together with piecewise time-varying transmission for intervention scenarios.
+The project is developed as a numerically explicit, testable implementation of classical and computational epidemiology. The current scientific core includes deterministic SIR, SEIR, and SEIRS models, time-varying transmission interventions, vaccination, waning immunity, and demographic turnover.
 
 ## Current epidemiology core
 
@@ -16,36 +16,55 @@ For a closed population of size \(N\), the SIR model is
 \frac{dR}{dt}=\gamma I.
 \]
 
-The SEIR extension introduces a latent compartment \(E\):
+The SEIR extension introduces a latent compartment \(E\). The SEIRS model adds demographic turnover, vaccination, and waning immunity:
 
 \[
-\frac{dS}{dt}=-\beta\frac{SI}{N},
-\qquad
-\frac{dE}{dt}=\beta\frac{SI}{N}-\sigma E,
+\frac{dS}{dt}=\mu N-\beta\frac{SI}{N}-\nu S+\omega R-\mu S,
 \]
 
 \[
-\frac{dI}{dt}=\sigma E-\gamma I,
-\qquad
-\frac{dR}{dt}=\gamma I.
+\frac{dE}{dt}=\beta\frac{SI}{N}-(\sigma+\mu)E,
 \]
 
-For both models, under the current assumptions,
+\[
+\frac{dI}{dt}=\sigma E-(\gamma+\mu)I,
+\]
 
 \[
-R_0=\frac{\beta}{\gamma}.
+\frac{dR}{dt}=\gamma I+\nu S-(\omega+\mu)R.
+\]
+
+Here \(\mu\) is the natural mortality rate, with births entering at rate \(\mu N\), \(\nu\) is the susceptible vaccination rate, and \(\omega\) is the rate of waning immunity.
+
+For the demographic SEIRS model,
+
+\[
+R_0=\frac{\beta\sigma}{(\sigma+\mu)(\gamma+\mu)}.
+\]
+
+At the vaccinated disease-free equilibrium, the susceptible fraction is
+
+\[
+\frac{S^*}{N}=\frac{\omega+\mu}{\omega+\mu+\nu},
+\]
+
+so the vaccination-adjusted control reproduction number is
+
+\[
+R_c=R_0\frac{S^*}{N}.
 \]
 
 The implementation currently provides:
 
-- typed SIR and SEIR model parameters and compartment states;
-- incidence \(\beta SI/N\);
-- \(R_0\) calculation;
+- typed SIR, SEIR, and SEIRS model parameters and compartment states;
+- standard-incidence transmission \(\beta SI/N\);
+- basic and vaccination-adjusted reproduction-number calculations;
 - fourth-order Runge-Kutta integration;
-- complete deterministic epidemic simulation;
+- complete deterministic epidemic and endemic simulations;
 - piecewise transmission schedules for interventions through \(\beta(t)\);
+- vaccination, waning immunity, births, and natural deaths;
 - CSV-style output suitable for plotting or downstream analysis;
-- tests for population conservation, non-negative compartments, early epidemic growth, exposed-compartment dynamics, intervention effects, and reproduction-number calculations.
+- tests for population conservation, non-negative compartments, early epidemic growth, intervention effects, waning flows, demographic balance, and reproduction-number calculations.
 
 ## Build
 
@@ -78,13 +97,13 @@ SEIR with a transmission intervention:
 ./build/seir_intervention_example
 ```
 
-The SEIR scenario starts with \(\beta=0.30\), reduces transmission to 35% of baseline on day 20, and relaxes it to 70% of baseline on day 60. Output contains
+SEIRS with demographic turnover, waning immunity, and vaccination:
 
-```text
-day,beta,susceptible,exposed,infectious,recovered
+```bash
+./build/seirs_vaccination_example
 ```
 
-so trajectories can be redirected directly to a data file.
+The SEIRS example compares a no-vaccination endemic scenario with a vaccinated scenario over ten years and reports \(R_0\) and \(R_c\) before emitting the paired trajectories.
 
 ## Repository layout
 
@@ -113,6 +132,6 @@ The intended development sequence is:
 
 Floating-point calculations use `real64` from `iso_fortran_env`. Model state and parameters are represented by derived types. Numerical integration and epidemiological equations are separated from executable programs so model behaviour can be tested independently.
 
-Time-varying interventions are represented as transmission schedules rather than embedded directly in the differential equations. This keeps the biological model separate from policy or scenario assumptions and makes alternative intervention histories easy to compare.
+Time-varying interventions are represented as transmission schedules rather than embedded directly in the differential equations. Demographic SEIRS dynamics use balanced births and natural deaths so that total population remains constant when initialized at the declared population size.
 
 The repository still contains a few generic numerical examples from its earlier life. They are retained temporarily because they provide tested numerical infrastructure; future PRs will either repurpose or remove them as the epidemiology library becomes self-contained.
