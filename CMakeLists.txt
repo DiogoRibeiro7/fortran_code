@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(fortran_epidemiology VERSION 0.6.0 LANGUAGES Fortran)
+project(fortran_epidemiology VERSION 0.7.0 LANGUAGES Fortran)
 
 include(CTest)
 find_package(LAPACK REQUIRED)
@@ -33,7 +33,9 @@ add_library(epidemiology
     src/rng_m.f90
     src/stochastic_sir_m.f90
     src/stochastic_seir_m.f90
+    src/age_structured_sir_m.f90
 )
+target_link_libraries(epidemiology PUBLIC LAPACK::LAPACK)
 enable_strict_fortran(epidemiology)
 
 add_executable(factorial_example app/factorial_example.f90)
@@ -66,6 +68,10 @@ enable_strict_fortran(stochastic_sir_example)
 add_executable(stochastic_seir_ensemble_example app/stochastic_seir_ensemble_example.f90)
 target_link_libraries(stochastic_seir_ensemble_example PRIVATE epidemiology)
 enable_strict_fortran(stochastic_seir_ensemble_example)
+
+add_executable(age_structured_sir_example app/age_structured_sir_example.f90)
+target_link_libraries(age_structured_sir_example PRIVATE epidemiology)
+enable_strict_fortran(age_structured_sir_example)
 
 if(BUILD_TESTING)
     add_executable(test_factorial test/test_factorial.f90)
@@ -102,4 +108,9 @@ if(BUILD_TESTING)
     target_link_libraries(test_stochastic_seir PRIVATE epidemiology)
     enable_strict_fortran(test_stochastic_seir)
     add_test(NAME stochastic_seir COMMAND test_stochastic_seir)
+
+    add_executable(test_age_structured_sir test/test_age_structured_sir.f90)
+    target_link_libraries(test_age_structured_sir PRIVATE epidemiology)
+    enable_strict_fortran(test_age_structured_sir)
+    add_test(NAME age_structured_sir COMMAND test_age_structured_sir)
 endif()
