@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(fortran_epidemiology VERSION 0.4.0 LANGUAGES Fortran)
+project(fortran_epidemiology VERSION 0.5.0 LANGUAGES Fortran)
 
 include(CTest)
 find_package(LAPACK REQUIRED)
@@ -30,6 +30,8 @@ add_library(epidemiology
     src/transmission_m.f90
     src/seir_m.f90
     src/seirs_m.f90
+    src/rng_m.f90
+    src/stochastic_sir_m.f90
 )
 enable_strict_fortran(epidemiology)
 
@@ -56,6 +58,10 @@ add_executable(seirs_vaccination_example app/seirs_vaccination_example.f90)
 target_link_libraries(seirs_vaccination_example PRIVATE epidemiology)
 enable_strict_fortran(seirs_vaccination_example)
 
+add_executable(stochastic_sir_example app/stochastic_sir_example.f90)
+target_link_libraries(stochastic_sir_example PRIVATE epidemiology)
+enable_strict_fortran(stochastic_sir_example)
+
 if(BUILD_TESTING)
     add_executable(test_factorial test/test_factorial.f90)
     target_link_libraries(test_factorial PRIVATE fortran_numerics)
@@ -81,4 +87,9 @@ if(BUILD_TESTING)
     target_link_libraries(test_seirs PRIVATE epidemiology)
     enable_strict_fortran(test_seirs)
     add_test(NAME seirs COMMAND test_seirs)
+
+    add_executable(test_stochastic_sir test/test_stochastic_sir.f90)
+    target_link_libraries(test_stochastic_sir PRIVATE epidemiology)
+    enable_strict_fortran(test_stochastic_sir)
+    add_test(NAME stochastic_sir COMMAND test_stochastic_sir)
 endif()

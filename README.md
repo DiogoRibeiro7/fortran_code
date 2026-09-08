@@ -2,11 +2,11 @@
 
 A compact epidemiological modelling codebase written in modern Fortran.
 
-The project is developed as a numerically explicit, testable implementation of classical and computational epidemiology. The current scientific core includes deterministic SIR, SEIR, and SEIRS models, time-varying transmission interventions, vaccination, waning immunity, and demographic turnover.
+The project is developed as a numerically explicit, testable implementation of classical and computational epidemiology. The current scientific core includes deterministic SIR, SEIR, and SEIRS models, time-varying transmission interventions, vaccination, waning immunity, demographic turnover, and stochastic SIR simulation with Gillespie's direct method.
 
 ## Current epidemiology core
 
-For a closed population of size \(N\), the SIR model is
+For a closed population of size \(N\), the deterministic SIR model is
 
 \[
 \frac{dS}{dt}=-\beta\frac{SI}{N},
@@ -28,43 +28,44 @@ The SEIR extension introduces a latent compartment \(E\). The SEIRS model adds d
 
 \[
 \frac{dI}{dt}=\sigma E-(\gamma+\mu)I,
-\]
-
-\[
+\qquad
 \frac{dR}{dt}=\gamma I+\nu S-(\omega+\mu)R.
 \]
-
-Here \(\mu\) is the natural mortality rate, with births entering at rate \(\mu N\), \(\nu\) is the susceptible vaccination rate, and \(\omega\) is the rate of waning immunity.
 
 For the demographic SEIRS model,
 
 \[
-R_0=\frac{\beta\sigma}{(\sigma+\mu)(\gamma+\mu)}.
+R_0=\frac{\beta\sigma}{(\sigma+\mu)(\gamma+\mu)},
+\qquad
+R_c=R_0\frac{\omega+\mu}{\omega+\mu+\nu}.
 \]
 
-At the vaccinated disease-free equilibrium, the susceptible fraction is
+## Stochastic SIR
+
+The stochastic SIR implementation treats infection and recovery as continuous-time Markov events with hazards
 
 \[
-\frac{S^*}{N}=\frac{\omega+\mu}{\omega+\mu+\nu},
+a_{\mathrm{inf}}=\beta\frac{SI}{N},
+\qquad
+ a_{\mathrm{rec}}=\gamma I.
 \]
 
-so the vaccination-adjusted control reproduction number is
+Gillespie's direct method samples the next waiting time from an exponential distribution with rate \(a_0=a_{\mathrm{inf}}+a_{\mathrm{rec}}\), then selects infection or recovery proportionally to its hazard. Compartments remain integer-valued and total population is conserved exactly.
 
-\[
-R_c=R_0\frac{S^*}{N}.
-\]
+The stochastic layer uses an explicit reproducible pseudo-random number generator, so fixed seeds produce stable event trajectories across test runs.
 
 The implementation currently provides:
 
-- typed SIR, SEIR, and SEIRS model parameters and compartment states;
+- deterministic SIR, SEIR, and SEIRS models;
 - standard-incidence transmission \(\beta SI/N\);
-- basic and vaccination-adjusted reproduction-number calculations;
+- basic and vaccination-adjusted reproduction numbers;
 - fourth-order Runge-Kutta integration;
-- complete deterministic epidemic and endemic simulations;
-- piecewise transmission schedules for interventions through \(\beta(t)\);
+- time-varying transmission schedules;
 - vaccination, waning immunity, births, and natural deaths;
-- CSV-style output suitable for plotting or downstream analysis;
-- tests for population conservation, non-negative compartments, early epidemic growth, intervention effects, waning flows, demographic balance, and reproduction-number calculations.
+- stochastic SIR simulation with Gillespie's direct method;
+- reproducible seeded random-number streams;
+- CSV/event-log output for plotting and downstream analysis;
+- tests for deterministic invariants, event hazards, absorbing states, extinction paths, and seeded stochastic trajectories.
 
 ## Build
 
@@ -83,27 +84,22 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
-## Run epidemic simulations
-
-Baseline SIR:
+## Run simulations
 
 ```bash
 ./build/sir_example
-```
-
-SEIR with a transmission intervention:
-
-```bash
 ./build/seir_intervention_example
-```
-
-SEIRS with demographic turnover, waning immunity, and vaccination:
-
-```bash
 ./build/seirs_vaccination_example
+./build/stochastic_sir_example
 ```
 
-The SEIRS example compares a no-vaccination endemic scenario with a vaccinated scenario over ten years and reports \(R_0\) and \(R_c\) before emitting the paired trajectories.
+The stochastic executable emits
+
+```text
+event,time,susceptible,infectious,recovered
+```
+
+with one row per infection or recovery event.
 
 ## Repository layout
 
@@ -115,12 +111,10 @@ test/  scientific and numerical regression tests
 
 ## Scientific roadmap
 
-The intended development sequence is:
-
 1. deterministic SIR and SEIR models;
 2. time-varying transmission and intervention functions;
 3. vaccination, births, deaths, waning immunity, and endemic models;
-4. stochastic SIR/SEIR simulation using Gillespie-style event dynamics;
+4. stochastic SIR/SEIR event dynamics;
 5. age-structured and contact-matrix models;
 6. estimation of growth rates, generation intervals, and reproduction numbers;
 7. likelihood-based parameter estimation and uncertainty quantification;
@@ -130,8 +124,6 @@ The intended development sequence is:
 
 ## Numerical conventions
 
-Floating-point calculations use `real64` from `iso_fortran_env`. Model state and parameters are represented by derived types. Numerical integration and epidemiological equations are separated from executable programs so model behaviour can be tested independently.
+Floating-point calculations use `real64` from `iso_fortran_env`, while stochastic compartment counts use `int64`. Model state and parameters are represented by derived types. Numerical integration, stochastic event dynamics, and epidemiological equations are separated from executable programs so model behaviour can be tested independently.
 
 Time-varying interventions are represented as transmission schedules rather than embedded directly in the differential equations. Demographic SEIRS dynamics use balanced births and natural deaths so that total population remains constant when initialized at the declared population size.
-
-The repository still contains a few generic numerical examples from its earlier life. They are retained temporarily because they provide tested numerical infrastructure; future PRs will either repurpose or remove them as the epidemiology library becomes self-contained.
