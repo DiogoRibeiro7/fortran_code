@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(fortran_epidemiology VERSION 0.10.0 LANGUAGES Fortran)
+project(fortran_epidemiology VERSION 0.11.0 LANGUAGES Fortran)
 
 include(CTest)
 find_package(LAPACK REQUIRED)
@@ -35,8 +35,10 @@ add_library(epidemiology
     src/stochastic_seir_m.f90
     src/age_structured_sir_m.f90
     src/growth_inference_m.f90
+    src/gamma_distribution_m.f90
     src/renewal_rt_m.f90
     src/negative_binomial_rt_m.f90
+    src/reporting_delay_nowcast_m.f90
 )
 target_link_libraries(epidemiology PUBLIC LAPACK::LAPACK)
 enable_strict_fortran(epidemiology)
@@ -87,6 +89,10 @@ enable_strict_fortran(renewal_rt_example)
 add_executable(negative_binomial_rt_example app/negative_binomial_rt_example.f90)
 target_link_libraries(negative_binomial_rt_example PRIVATE epidemiology)
 enable_strict_fortran(negative_binomial_rt_example)
+
+add_executable(reporting_delay_nowcast_example app/reporting_delay_nowcast_example.f90)
+target_link_libraries(reporting_delay_nowcast_example PRIVATE epidemiology)
+enable_strict_fortran(reporting_delay_nowcast_example)
 
 if(BUILD_TESTING)
     add_executable(test_factorial test/test_factorial.f90)
@@ -143,4 +149,9 @@ if(BUILD_TESTING)
     target_link_libraries(test_negative_binomial_rt PRIVATE epidemiology)
     enable_strict_fortran(test_negative_binomial_rt)
     add_test(NAME negative_binomial_rt COMMAND test_negative_binomial_rt)
+
+    add_executable(test_reporting_delay_nowcast test/test_reporting_delay_nowcast.f90)
+    target_link_libraries(test_reporting_delay_nowcast PRIVATE epidemiology)
+    enable_strict_fortran(test_reporting_delay_nowcast)
+    add_test(NAME reporting_delay_nowcast COMMAND test_reporting_delay_nowcast)
 endif()
