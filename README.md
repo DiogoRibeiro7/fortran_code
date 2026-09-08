@@ -2,98 +2,87 @@
 
 A compact epidemiological modelling codebase written in modern Fortran.
 
-The project is developed as a numerically explicit, testable implementation of classical and computational epidemiology. The current scientific core includes deterministic SIR, SEIR, and SEIRS models, time-varying interventions, vaccination, waning immunity, demographic turnover, stochastic SIR/SEIR simulation with Gillespie's direct method, reproducible ensembles, and age-structured transmission through contact matrices.
+The project is developed as a numerically explicit, testable implementation of classical and computational epidemiology. The scientific core now includes deterministic and stochastic compartmental models, intervention schedules, demographic turnover, age-structured transmission, contact-matrix reproduction numbers, and early-epidemic growth inference from generation intervals.
 
-## Current epidemiology core
+## Models
 
-For a closed population of size \(N\), the deterministic SIR model is
+The repository includes deterministic SIR, SEIR, and SEIRS models together with stochastic SIR and SEIR continuous-time Markov chains simulated using Gillespie's direct method.
 
-\[
-\frac{dS}{dt}=-\beta\frac{SI}{N},
-\qquad
-\frac{dI}{dt}=\beta\frac{SI}{N}-\gamma I,
-\qquad
-\frac{dR}{dt}=\gamma I.
-\]
-
-The deterministic SEIR extension adds a latent compartment \(E\), while the SEIRS model adds demographic turnover, vaccination, and waning immunity. For the demographic SEIRS model,
-
-\[
-R_0=\frac{\beta\sigma}{(\sigma+\mu)(\gamma+\mu)},
-\qquad
-R_c=R_0\frac{\omega+\mu}{\omega+\mu+\nu}.
-\]
-
-## Stochastic epidemic models
-
-The stochastic SIR and SEIR implementations are continuous-time Markov chains simulated with Gillespie's direct method. For stochastic SEIR,
-
-\[
-a_{\mathrm{inf}}=\beta\frac{SI}{N},
-\qquad
-a_{\mathrm{prog}}=\sigma E,
-\qquad
-a_{\mathrm{rec}}=\gamma I.
-\]
-
-The stochastic layer uses a reproducible explicit pseudo-random number generator and supports seeded ensemble summaries including extinction, fadeout, major-outbreak probability, final-size moments, peak prevalence, and mean compartment values at a time horizon.
-
-## Age-structured transmission
-
-For population groups \(i=1,\ldots,m\), the force of infection is
+It also supports age-structured transmission through
 
 \[
 \lambda_i
 =
 \beta q_i
-\sum_j
-C_{ij} z_j\frac{I_j}{N_j},
+\sum_j C_{ij}z_j\frac{I_j}{N_j},
 \]
 
-where \(C_{ij}\) is the per-person contact rate reported by group \(i\) with group \(j\), \(q_i\) is group-specific susceptibility, and \(z_j\) is group-specific infectiousness.
-
-The group dynamics are
-
-\[
-\dot S_i=-\lambda_i S_i,
-\qquad
-\dot I_i=\lambda_i S_i-\gamma_i I_i,
-\qquad
-\dot R_i=\gamma_i I_i.
-\]
-
-At the disease-free equilibrium the next-generation matrix is
-
-\[
-K_{ij}
-=
-\frac{
-\beta q_i N_i C_{ij} z_j
-}{
-N_j\gamma_j
-},
-\]
-
-and the basic reproduction number is
+with basic reproduction number
 
 \[
 R_0=\rho(K),
 \]
 
-where \(\rho(K)\) is the spectral radius. The implementation computes this through LAPACK and exposes a reciprocity diagnostic based on
+where \(K\) is the next-generation matrix and \(\rho(K)\) its spectral radius.
+
+## Early epidemic growth and generation intervals
+
+For a generation-interval distribution \(w(\tau)\), exponential growth rate \(r\), and reproduction number \(R\), the code evaluates the Euler-Lotka relation
 
 \[
-N_iC_{ij}=N_jC_{ji}.
+1
+=
+R\int_0^\infty e^{-r\tau}w(\tau)\,d\tau.
 \]
 
-The reference three-group example uses children, adults, and older adults. Its reciprocal baseline contact matrix gives approximately
+The `growth_inference_m` module provides:
+
+- arbitrary discrete generation-interval distributions;
+- generation-interval mean and standard deviation;
+- the Laplace transform of the generation interval;
+- conversion from observed growth rate \(r\) to reproduction number \(R\);
+- numerical inversion from \(R\) back to \(r\);
+- doubling and halving times;
+- log-linear fitting of an early exponential incidence curve;
+- the mechanistic SEIR generation-interval density;
+- analytic SEIR relations between \(r\), \(R_0\), \(\sigma\), and \(\gamma\).
+
+For the standard latent-plus-infectious SEIR process, the generation interval has mean
+
+\[
+E[G]
+=
+\frac{1}{\sigma}+rac{1}{\gamma}.
+\]
+
+The early growth rate satisfies
+
+\[
+(r+\sigma)(r+\gamma)=\sigma\beta,
+\]
+
+so
+
+\[
+R_0
+=
+\frac{(r+\sigma)(r+\gamma)}{\sigma\gamma}.
+\]
+
+This is also recovered numerically by Euler-Lotka when the full SEIR generation-interval distribution is used.
+
+A documented example uses a 3-day mean latent period, 5-day mean infectious period, and observed doubling time of 5 days. It gives approximately
 
 ```text
-baseline R0     = 3.9184
-intervention R0 = 2.2936
+growth rate r                 = 0.138629 / day
+generation-interval mean      = 8.0000 days
+generation-interval SD        = 5.8309 days
+R0 from Euler-Lotka           = 2.3973
+R0 from analytic SEIR         = 2.3973
+R0 from exp(r * mean GI)      = 3.0314
 ```
 
-when contacts involving the child group are reduced while preserving reciprocity.
+The difference in the last line is deliberate: using only the mean generation interval discards distributional information and can materially distort the inferred reproduction number.
 
 ## Build
 
@@ -112,7 +101,7 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
-## Run simulations
+## Run examples
 
 ```bash
 ./build/sir_example
@@ -121,6 +110,7 @@ ctest --test-dir build --output-on-failure
 ./build/stochastic_sir_example
 ./build/stochastic_seir_ensemble_example
 ./build/age_structured_sir_example
+./build/growth_rate_example
 ```
 
 ## Repository layout
@@ -142,10 +132,8 @@ test/  scientific and numerical regression tests
 7. likelihood-based parameter estimation and uncertainty quantification;
 8. metapopulation/spatial models and sensitivity analysis;
 9. import/export interfaces for real outbreak data;
-10. optional Python interoperability for visualization and analysis while keeping the modelling kernel in Fortran.
+10. optional Python interoperability while keeping the modelling kernel in Fortran.
 
 ## Numerical conventions
 
-Floating-point calculations use `real64` from `iso_fortran_env`, while stochastic compartment counts use `int64`. Model state and parameters are represented by derived types. Numerical integration, stochastic event dynamics, and epidemiological equations are separated from executable programs so model behaviour can be tested independently.
-
-Time-varying interventions are represented as transmission schedules rather than embedded directly in the disease equations. Age-structured contact matrices use an explicit contact-rate convention and expose reciprocity diagnostics so heterogeneous transmission assumptions remain inspectable.
+Floating-point calculations use `real64` from `iso_fortran_env`, while stochastic compartment counts use `int64`. Model state, parameters, generation-interval distributions, numerical solvers, and stochastic event dynamics are represented explicitly and tested independently.

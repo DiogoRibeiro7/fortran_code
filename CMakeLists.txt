@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(fortran_epidemiology VERSION 0.7.0 LANGUAGES Fortran)
+project(fortran_epidemiology VERSION 0.8.0 LANGUAGES Fortran)
 
 include(CTest)
 find_package(LAPACK REQUIRED)
@@ -34,6 +34,7 @@ add_library(epidemiology
     src/stochastic_sir_m.f90
     src/stochastic_seir_m.f90
     src/age_structured_sir_m.f90
+    src/growth_inference_m.f90
 )
 target_link_libraries(epidemiology PUBLIC LAPACK::LAPACK)
 enable_strict_fortran(epidemiology)
@@ -72,6 +73,10 @@ enable_strict_fortran(stochastic_seir_ensemble_example)
 add_executable(age_structured_sir_example app/age_structured_sir_example.f90)
 target_link_libraries(age_structured_sir_example PRIVATE epidemiology)
 enable_strict_fortran(age_structured_sir_example)
+
+add_executable(growth_rate_example app/growth_rate_example.f90)
+target_link_libraries(growth_rate_example PRIVATE epidemiology)
+enable_strict_fortran(growth_rate_example)
 
 if(BUILD_TESTING)
     add_executable(test_factorial test/test_factorial.f90)
@@ -113,4 +118,9 @@ if(BUILD_TESTING)
     target_link_libraries(test_age_structured_sir PRIVATE epidemiology)
     enable_strict_fortran(test_age_structured_sir)
     add_test(NAME age_structured_sir COMMAND test_age_structured_sir)
+
+    add_executable(test_growth_inference test/test_growth_inference.f90)
+    target_link_libraries(test_growth_inference PRIVATE epidemiology)
+    enable_strict_fortran(test_growth_inference)
+    add_test(NAME growth_inference COMMAND test_growth_inference)
 endif()
