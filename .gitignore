@@ -1,0 +1,21 @@
+# CMake and compiler output
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+CTestTestfile.cmake
+Testing/
+*.mod
+*.smod
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Editor and OS noise
+.DS_Store
+.vscode/
+.idea/
