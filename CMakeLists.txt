@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(fortran_epidemiology VERSION 0.8.0 LANGUAGES Fortran)
+project(fortran_epidemiology VERSION 0.9.0 LANGUAGES Fortran)
 
 include(CTest)
 find_package(LAPACK REQUIRED)
@@ -35,6 +35,7 @@ add_library(epidemiology
     src/stochastic_seir_m.f90
     src/age_structured_sir_m.f90
     src/growth_inference_m.f90
+    src/renewal_rt_m.f90
 )
 target_link_libraries(epidemiology PUBLIC LAPACK::LAPACK)
 enable_strict_fortran(epidemiology)
@@ -77,6 +78,10 @@ enable_strict_fortran(age_structured_sir_example)
 add_executable(growth_rate_example app/growth_rate_example.f90)
 target_link_libraries(growth_rate_example PRIVATE epidemiology)
 enable_strict_fortran(growth_rate_example)
+
+add_executable(renewal_rt_example app/renewal_rt_example.f90)
+target_link_libraries(renewal_rt_example PRIVATE epidemiology)
+enable_strict_fortran(renewal_rt_example)
 
 if(BUILD_TESTING)
     add_executable(test_factorial test/test_factorial.f90)
@@ -123,4 +128,9 @@ if(BUILD_TESTING)
     target_link_libraries(test_growth_inference PRIVATE epidemiology)
     enable_strict_fortran(test_growth_inference)
     add_test(NAME growth_inference COMMAND test_growth_inference)
+
+    add_executable(test_renewal_rt test/test_renewal_rt.f90)
+    target_link_libraries(test_renewal_rt PRIVATE epidemiology)
+    enable_strict_fortran(test_renewal_rt)
+    add_test(NAME renewal_rt COMMAND test_renewal_rt)
 endif()

@@ -2,7 +2,7 @@
 
 A compact epidemiological modelling codebase written in modern Fortran.
 
-The project is developed as a numerically explicit, testable implementation of classical and computational epidemiology. The scientific core now includes deterministic and stochastic compartmental models, intervention schedules, demographic turnover, age-structured transmission, contact-matrix reproduction numbers, and early-epidemic growth inference from generation intervals.
+The project is developed as a numerically explicit, testable implementation of classical and computational epidemiology. The scientific core now includes deterministic and stochastic compartmental models, intervention schedules, demographic turnover, age-structured transmission, contact-matrix reproduction numbers, early-epidemic growth inference, and renewal-equation estimation of time-varying reproduction numbers.
 
 ## Models
 
@@ -11,10 +11,7 @@ The repository includes deterministic SIR, SEIR, and SEIRS models together with 
 It also supports age-structured transmission through
 
 \[
-\lambda_i
-=
-\beta q_i
-\sum_j C_{ij}z_j\frac{I_j}{N_j},
+\lambda_i=\beta q_i\sum_j C_{ij}z_j\frac{I_j}{N_j},
 \]
 
 with basic reproduction number
@@ -23,66 +20,51 @@ with basic reproduction number
 R_0=\rho(K),
 \]
 
-where \(K\) is the next-generation matrix and \(\rho(K)\) its spectral radius.
+where \(K\) is the next-generation matrix.
 
 ## Early epidemic growth and generation intervals
 
-For a generation-interval distribution \(w(\tau)\), exponential growth rate \(r\), and reproduction number \(R\), the code evaluates the Euler-Lotka relation
+For a generation-interval distribution \(w(\tau)\), exponential growth rate \(r\), and reproduction number \(R\), the code evaluates
 
 \[
-1
-=
-R\int_0^\infty e^{-r\tau}w(\tau)\,d\tau.
+1=R\int_0^\infty e^{-r\tau}w(\tau)\,d\tau.
 \]
 
-The `growth_inference_m` module provides:
+The `growth_inference_m` module supports generation-interval moments, Euler-Lotka conversion between \(R\) and \(r\), doubling/halving times, log-linear growth fitting, and mechanistic SEIR generation intervals.
 
-- arbitrary discrete generation-interval distributions;
-- generation-interval mean and standard deviation;
-- the Laplace transform of the generation interval;
-- conversion from observed growth rate \(r\) to reproduction number \(R\);
-- numerical inversion from \(R\) back to \(r\);
-- doubling and halving times;
-- log-linear fitting of an early exponential incidence curve;
-- the mechanistic SEIR generation-interval density;
-- analytic SEIR relations between \(r\), \(R_0\), \(\sigma\), and \(\gamma\).
+## Renewal-equation Rt inference
 
-For the standard latent-plus-infectious SEIR process, the generation interval has mean
+For observed incidence \(I_t\), the renewal model uses total infectiousness
 
 \[
-E[G]
-=
-\frac{1}{\sigma}+rac{1}{\gamma}.
+\Lambda_t=\sum_{s\ge1}I_{t-s}w_s
 \]
 
-The early growth rate satisfies
+and assumes
 
 \[
-(r+\sigma)(r+\gamma)=\sigma\beta,
+I_t\mid R_t,\Lambda_t\sim\operatorname{Poisson}(R_t\Lambda_t).
 \]
 
-so
+Within a sliding window where \(R_t\) is treated as constant, a Gamma prior
 
 \[
-R_0
-=
-\frac{(r+\sigma)(r+\gamma)}{\sigma\gamma}.
+R\sim\operatorname{Gamma}(a,b)
 \]
 
-This is also recovered numerically by Euler-Lotka when the full SEIR generation-interval distribution is used.
+with shape \(a\) and rate \(b\) gives the conjugate posterior
 
-A documented example uses a 3-day mean latent period, 5-day mean infectious period, and observed doubling time of 5 days. It gives approximately
+\[
+R\mid I\sim\operatorname{Gamma}\left(a+\sum I_t,\;b+\sum\Lambda_t\right).
+\]
 
-```text
-growth rate r                 = 0.138629 / day
-generation-interval mean      = 8.0000 days
-generation-interval SD        = 5.8309 days
-R0 from Euler-Lotka           = 2.3973
-R0 from analytic SEIR         = 2.3973
-R0 from exp(r * mean GI)      = 3.0314
-```
+The `renewal_rt_m` module provides:
 
-The difference in the last line is deliberate: using only the mean generation interval discards distributional information and can materially distort the inferred reproduction number.
+- infectiousness convolution from incidence and discrete generation-interval weights;
+- sliding-window posterior estimation;
+- posterior mean and standard deviation;
+- numerically evaluated Gamma credible intervals;
+- explicit validity flags for windows without sufficient infectiousness.
 
 ## Build
 
@@ -111,6 +93,7 @@ ctest --test-dir build --output-on-failure
 ./build/stochastic_seir_ensemble_example
 ./build/age_structured_sir_example
 ./build/growth_rate_example
+./build/renewal_rt_example
 ```
 
 ## Repository layout
@@ -129,11 +112,11 @@ test/  scientific and numerical regression tests
 4. stochastic SIR/SEIR event dynamics and ensembles;
 5. age-structured and contact-matrix transmission;
 6. generation intervals, growth rates, and reproduction-number estimation;
-7. likelihood-based parameter estimation and uncertainty quantification;
-8. metapopulation/spatial models and sensitivity analysis;
+7. renewal-equation Rt inference and likelihood-based estimation;
+8. uncertainty quantification, sensitivity analysis, and spatial/metapopulation models;
 9. import/export interfaces for real outbreak data;
 10. optional Python interoperability while keeping the modelling kernel in Fortran.
 
 ## Numerical conventions
 
-Floating-point calculations use `real64` from `iso_fortran_env`, while stochastic compartment counts use `int64`. Model state, parameters, generation-interval distributions, numerical solvers, and stochastic event dynamics are represented explicitly and tested independently.
+Floating-point calculations use `real64` from `iso_fortran_env`, while stochastic compartment counts use `int64`. Model state, parameters, generation-interval distributions, numerical solvers, stochastic event dynamics, and statistical inference objects are represented explicitly and tested independently.
