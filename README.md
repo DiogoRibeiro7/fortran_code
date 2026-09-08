@@ -2,25 +2,11 @@
 
 A compact epidemiological modelling codebase written in modern Fortran.
 
-The project is developed as a numerically explicit, testable implementation of classical and computational epidemiology. The scientific core now includes deterministic and stochastic compartmental models, intervention schedules, demographic turnover, age-structured transmission, contact-matrix reproduction numbers, early-epidemic growth inference, and renewal-equation estimation of time-varying reproduction numbers.
+The project is developed as a numerically explicit, testable implementation of classical and computational epidemiology. The scientific core includes deterministic and stochastic compartmental models, intervention schedules, demographic turnover, age-structured transmission, generation-interval inference, renewal-equation Rt estimation, and overdispersed surveillance likelihoods.
 
 ## Models
 
-The repository includes deterministic SIR, SEIR, and SEIRS models together with stochastic SIR and SEIR continuous-time Markov chains simulated using Gillespie's direct method.
-
-It also supports age-structured transmission through
-
-\[
-\lambda_i=\beta q_i\sum_j C_{ij}z_j\frac{I_j}{N_j},
-\]
-
-with basic reproduction number
-
-\[
-R_0=\rho(K),
-\]
-
-where \(K\) is the next-generation matrix.
+The repository includes deterministic SIR, SEIR, and SEIRS models together with stochastic SIR and SEIR continuous-time Markov chains simulated using Gillespie's direct method. It also supports age-structured transmission through contact matrices and next-generation-matrix reproduction numbers.
 
 ## Early epidemic growth and generation intervals
 
@@ -34,37 +20,42 @@ The `growth_inference_m` module supports generation-interval moments, Euler-Lotk
 
 ## Renewal-equation Rt inference
 
-For observed incidence \(I_t\), the renewal model uses total infectiousness
+For observed incidence \(I_t\), total infectiousness is
 
 \[
-\Lambda_t=\sum_{s\ge1}I_{t-s}w_s
+\Lambda_t=\sum_{s\ge1}I_{t-s}w_s.
 \]
 
-and assumes
+The Poisson renewal model assumes
 
 \[
-I_t\mid R_t,\Lambda_t\sim\operatorname{Poisson}(R_t\Lambda_t).
+I_t\mid R_t,\Lambda_t\sim\operatorname{Poisson}(R_t\Lambda_t),
 \]
 
-Within a sliding window where \(R_t\) is treated as constant, a Gamma prior
+and uses Gamma-Poisson conjugacy to obtain posterior means, standard deviations, and Gamma credible intervals for sliding-window estimates of \(R_t\).
+
+## Negative-binomial observation model
+
+Real surveillance counts are often more variable than Poisson. The `negative_binomial_rt_m` module adds an NB2 renewal likelihood with
 
 \[
-R\sim\operatorname{Gamma}(a,b)
+\mu_t=R_t\Lambda_t,
+\qquad
+\operatorname{Var}(I_t\mid\mu_t)=\mu_t+\frac{\mu_t^2}{k},
 \]
 
-with shape \(a\) and rate \(b\) gives the conjugate posterior
+where \(k>0\) is the dispersion parameter. Large \(k\) approaches the Poisson model, while smaller \(k\) represents stronger overdispersion.
 
-\[
-R\mid I\sim\operatorname{Gamma}\left(a+\sum I_t,\;b+\sum\Lambda_t\right).
-\]
+Because the negative-binomial likelihood is no longer Gamma-conjugate in \(R_t\), the module estimates \(R_t\) by maximum likelihood on each window and reports profile-likelihood confidence intervals. This keeps the uncertainty calculation consistent with the chosen observation model instead of reusing the Poisson posterior formula.
 
-The `renewal_rt_m` module provides:
+The module provides:
 
-- infectiousness convolution from incidence and discrete generation-interval weights;
-- sliding-window posterior estimation;
-- posterior mean and standard deviation;
-- numerically evaluated Gamma credible intervals;
-- explicit validity flags for windows without sufficient infectiousness.
+- NB2 variance and log-probability calculations;
+- fixed-dispersion window and sliding-window Rt estimation;
+- exact likelihood maximization for \(R_t\) via a bracketed score solve;
+- profile-likelihood confidence intervals;
+- explicit invalid-window handling when incidence has no renewal support;
+- the Poisson limit as dispersion \(k\to\infty\).
 
 ## Build
 
@@ -94,7 +85,10 @@ ctest --test-dir build --output-on-failure
 ./build/age_structured_sir_example
 ./build/growth_rate_example
 ./build/renewal_rt_example
+./build/negative_binomial_rt_example
 ```
+
+The negative-binomial example compares strongly overdispersed and near-Poisson profile intervals for the same incidence series.
 
 ## Repository layout
 
@@ -112,11 +106,11 @@ test/  scientific and numerical regression tests
 4. stochastic SIR/SEIR event dynamics and ensembles;
 5. age-structured and contact-matrix transmission;
 6. generation intervals, growth rates, and reproduction-number estimation;
-7. renewal-equation Rt inference and likelihood-based estimation;
+7. Poisson and negative-binomial renewal-equation Rt inference;
 8. uncertainty quantification, sensitivity analysis, and spatial/metapopulation models;
 9. import/export interfaces for real outbreak data;
 10. optional Python interoperability while keeping the modelling kernel in Fortran.
 
 ## Numerical conventions
 
-Floating-point calculations use `real64` from `iso_fortran_env`, while stochastic compartment counts use `int64`. Model state, parameters, generation-interval distributions, numerical solvers, stochastic event dynamics, and statistical inference objects are represented explicitly and tested independently.
+Floating-point calculations use `real64` from `iso_fortran_env`, while stochastic compartment counts use `int64`. Model state, parameters, numerical solvers, stochastic event dynamics, and statistical inference objects are represented explicitly and tested independently.

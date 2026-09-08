@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(fortran_epidemiology VERSION 0.9.0 LANGUAGES Fortran)
+project(fortran_epidemiology VERSION 0.10.0 LANGUAGES Fortran)
 
 include(CTest)
 find_package(LAPACK REQUIRED)
@@ -36,6 +36,7 @@ add_library(epidemiology
     src/age_structured_sir_m.f90
     src/growth_inference_m.f90
     src/renewal_rt_m.f90
+    src/negative_binomial_rt_m.f90
 )
 target_link_libraries(epidemiology PUBLIC LAPACK::LAPACK)
 enable_strict_fortran(epidemiology)
@@ -82,6 +83,10 @@ enable_strict_fortran(growth_rate_example)
 add_executable(renewal_rt_example app/renewal_rt_example.f90)
 target_link_libraries(renewal_rt_example PRIVATE epidemiology)
 enable_strict_fortran(renewal_rt_example)
+
+add_executable(negative_binomial_rt_example app/negative_binomial_rt_example.f90)
+target_link_libraries(negative_binomial_rt_example PRIVATE epidemiology)
+enable_strict_fortran(negative_binomial_rt_example)
 
 if(BUILD_TESTING)
     add_executable(test_factorial test/test_factorial.f90)
@@ -133,4 +138,9 @@ if(BUILD_TESTING)
     target_link_libraries(test_renewal_rt PRIVATE epidemiology)
     enable_strict_fortran(test_renewal_rt)
     add_test(NAME renewal_rt COMMAND test_renewal_rt)
+
+    add_executable(test_negative_binomial_rt test/test_negative_binomial_rt.f90)
+    target_link_libraries(test_negative_binomial_rt PRIVATE epidemiology)
+    enable_strict_fortran(test_negative_binomial_rt)
+    add_test(NAME negative_binomial_rt COMMAND test_negative_binomial_rt)
 endif()
