@@ -1,75 +1,93 @@
-# Modern Fortran numerical examples
+# Epidemiological modelling in modern Fortran
 
-A small collection of modern Fortran examples focused on numerical computing, typed modules, explicit interfaces, and reproducible builds.
+A compact epidemiological modelling codebase written in modern Fortran.
 
-The repository currently contains:
+The project is being developed as a numerically explicit, testable implementation of classical and computational epidemiology. The initial scientific core is the deterministic SIR model, with later work planned for SEIR dynamics, interventions, stochastic epidemics, structured populations, parameter inference, and data assimilation.
 
-- a reusable factorial module using `iso_fortran_env` kinds;
-- a typed wrapper around LAPACK `DGESV` for dense linear systems;
-- small executable examples under `app/`;
-- numerical regression tests under `test/`;
-- CMake/CTest build and test automation;
-- GitHub Actions CI using GNU Fortran and system BLAS/LAPACK.
+## Current epidemiology core
 
-## Requirements
+For a closed population of size \(N\), the SIR model is
 
-- CMake 3.25 or newer
-- a Fortran compiler with Fortran 2018 support, such as GNU Fortran
-- BLAS and LAPACK development libraries
+\[
+\frac{dS}{dt}=-\beta\frac{SI}{N},
+\qquad
+\frac{dI}{dt}=\beta\frac{SI}{N}-\gamma I,
+\qquad
+\frac{dR}{dt}=\gamma I.
+\]
+
+The basic reproduction number is
+
+\[
+R_0=\frac{\beta}{\gamma}.
+\]
+
+The current implementation provides:
+
+- typed SIR model parameters and compartment states;
+- incidence \(\beta SI/N\);
+- \(R_0\) calculation;
+- fourth-order Runge-Kutta integration;
+- complete deterministic epidemic simulation;
+- CSV-style output suitable for plotting or downstream analysis;
+- tests for population conservation, non-negative compartments, expected early epidemic growth, and \(R_0\).
+
+## Build
+
+Requirements:
+
+- CMake 3.25 or newer;
+- a modern Fortran compiler such as GNU Fortran;
+- BLAS/LAPACK for the retained numerical examples.
 
 On Debian or Ubuntu:
 
 ```bash
 sudo apt-get install gfortran cmake libblas-dev liblapack-dev
-```
-
-## Build
-
-```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build --parallel
-```
-
-Debug builds enable strict GNU Fortran diagnostics and runtime checks when `gfortran` is used.
-
-## Test
-
-```bash
 ctest --test-dir build --output-on-failure
 ```
 
-The current tests check the factorial implementation and verify that the LAPACK example solves
-
-\[
-A x = b
-\]
-
-with the expected solution
-
-\[
-x = (2, 3, -1)^T.
-\]
-
-## Run the examples
+## Run an epidemic simulation
 
 ```bash
-./build/factorial_example
-./build/for_loop_example
-./build/lapack_example
+./build/sir_example
 ```
 
-## Layout
+The executable prints \(R_0\) followed by
 
 ```text
-app/   executable examples
-src/   reusable Fortran modules
-test/  numerical tests
+day,susceptible,infectious,recovered
 ```
+
+so the trajectory can be redirected directly to a data file.
+
+## Repository layout
+
+```text
+src/   reusable epidemiological and numerical modules
+app/   executable simulations and examples
+test/  scientific and numerical regression tests
+```
+
+## Scientific roadmap
+
+The intended development sequence is:
+
+1. deterministic SIR and SEIR models;
+2. time-varying transmission and intervention functions;
+3. vaccination, births, deaths, waning immunity, and endemic models;
+4. stochastic SIR/SEIR simulation using Gillespie-style event dynamics;
+5. age-structured and contact-matrix models;
+6. estimation of growth rates, generation intervals, and reproduction numbers;
+7. likelihood-based parameter estimation and uncertainty quantification;
+8. ensemble simulation and sensitivity analysis;
+9. import/export interfaces for real outbreak data;
+10. optional Python interoperability for visualization and analysis while keeping the modelling kernel in Fortran.
 
 ## Numerical conventions
 
-Floating-point code uses the standard `real64` kind from `iso_fortran_env` rather than compiler-specific declarations such as `real*8`. External LAPACK calls use an explicit interface, and inputs are copied before calling `DGESV` because LAPACK overwrites the matrix and right-hand side in place.
+Floating-point calculations use `real64` from `iso_fortran_env`. Model state and parameters are represented by derived types. Numerical integration and epidemiological equations are separated from executable programs so model behaviour can be tested independently.
 
-## Next steps
-
-Future work can add a maintained Python interface, broader LAPACK coverage, property-based numerical tests, and additional numerical-method examples without coupling those concerns to the core Fortran build.
+The repository still contains a few generic numerical examples from its earlier life. They are retained temporarily because they provide tested numerical infrastructure; future PRs will either repurpose or remove them as the epidemiology library becomes self-contained.
