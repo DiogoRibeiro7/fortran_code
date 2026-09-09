@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(fortran_epidemiology VERSION 0.12.0 LANGUAGES Fortran)
+project(fortran_epidemiology VERSION 0.13.0 LANGUAGES Fortran)
 
 include(CTest)
 find_package(LAPACK REQUIRED)
@@ -31,6 +31,7 @@ add_library(epidemiology
     src/seir_m.f90
     src/seirs_m.f90
     src/rng_m.f90
+    src/random_distributions_m.f90
     src/stochastic_sir_m.f90
     src/stochastic_seir_m.f90
     src/age_structured_sir_m.f90
@@ -40,6 +41,7 @@ add_library(epidemiology
     src/negative_binomial_rt_m.f90
     src/reporting_delay_nowcast_m.f90
     src/nowcasted_rt_pipeline_m.f90
+    src/nowcast_rt_uncertainty_m.f90
 )
 target_link_libraries(epidemiology PUBLIC LAPACK::LAPACK)
 enable_strict_fortran(epidemiology)
@@ -98,6 +100,10 @@ enable_strict_fortran(reporting_delay_nowcast_example)
 add_executable(nowcasted_rt_pipeline_example app/nowcasted_rt_pipeline_example.f90)
 target_link_libraries(nowcasted_rt_pipeline_example PRIVATE epidemiology)
 enable_strict_fortran(nowcasted_rt_pipeline_example)
+
+add_executable(nowcast_rt_uncertainty_example app/nowcast_rt_uncertainty_example.f90)
+target_link_libraries(nowcast_rt_uncertainty_example PRIVATE epidemiology)
+enable_strict_fortran(nowcast_rt_uncertainty_example)
 
 if(BUILD_TESTING)
     add_executable(test_factorial test/test_factorial.f90)
@@ -164,4 +170,9 @@ if(BUILD_TESTING)
     target_link_libraries(test_nowcasted_rt_pipeline PRIVATE epidemiology)
     enable_strict_fortran(test_nowcasted_rt_pipeline)
     add_test(NAME nowcasted_rt_pipeline COMMAND test_nowcasted_rt_pipeline)
+
+    add_executable(test_nowcast_rt_uncertainty test/test_nowcast_rt_uncertainty.f90)
+    target_link_libraries(test_nowcast_rt_uncertainty PRIVATE epidemiology)
+    enable_strict_fortran(test_nowcast_rt_uncertainty)
+    add_test(NAME nowcast_rt_uncertainty COMMAND test_nowcast_rt_uncertainty)
 endif()
