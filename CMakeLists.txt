@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(fortran_epidemiology VERSION 0.13.0 LANGUAGES Fortran)
+project(fortran_epidemiology VERSION 0.14.0 LANGUAGES Fortran)
 
 include(CTest)
 find_package(LAPACK REQUIRED)
@@ -42,6 +42,7 @@ add_library(epidemiology
     src/reporting_delay_nowcast_m.f90
     src/nowcasted_rt_pipeline_m.f90
     src/nowcast_rt_uncertainty_m.f90
+    src/generation_interval_uncertainty_m.f90
 )
 target_link_libraries(epidemiology PUBLIC LAPACK::LAPACK)
 enable_strict_fortran(epidemiology)
@@ -104,6 +105,10 @@ enable_strict_fortran(nowcasted_rt_pipeline_example)
 add_executable(nowcast_rt_uncertainty_example app/nowcast_rt_uncertainty_example.f90)
 target_link_libraries(nowcast_rt_uncertainty_example PRIVATE epidemiology)
 enable_strict_fortran(nowcast_rt_uncertainty_example)
+
+add_executable(generation_interval_uncertainty_example app/generation_interval_uncertainty_example.f90)
+target_link_libraries(generation_interval_uncertainty_example PRIVATE epidemiology)
+enable_strict_fortran(generation_interval_uncertainty_example)
 
 if(BUILD_TESTING)
     add_executable(test_factorial test/test_factorial.f90)
@@ -175,4 +180,9 @@ if(BUILD_TESTING)
     target_link_libraries(test_nowcast_rt_uncertainty PRIVATE epidemiology)
     enable_strict_fortran(test_nowcast_rt_uncertainty)
     add_test(NAME nowcast_rt_uncertainty COMMAND test_nowcast_rt_uncertainty)
+
+    add_executable(test_generation_interval_uncertainty test/test_generation_interval_uncertainty.f90)
+    target_link_libraries(test_generation_interval_uncertainty PRIVATE epidemiology)
+    enable_strict_fortran(test_generation_interval_uncertainty)
+    add_test(NAME generation_interval_uncertainty COMMAND test_generation_interval_uncertainty)
 endif()

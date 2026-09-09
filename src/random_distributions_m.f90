@@ -4,7 +4,7 @@ module random_distributions_m
     implicit none
     private
 
-    public :: gamma_random, poisson_random
+    public :: gamma_random, poisson_random, dirichlet_random
 
 contains
 
@@ -90,6 +90,35 @@ contains
             end if
         end do
     end function poisson_random
+
+    subroutine dirichlet_random(rng, mean_weights, concentration, draw)
+        type(rng_state), intent(inout) :: rng
+        real(real64), intent(in) :: mean_weights(:)
+        real(real64), intent(in) :: concentration
+        real(real64), intent(out) :: draw(:)
+        real(real64) :: total
+        integer :: idx
+        real(real64), parameter :: tolerance = 1.0e-12_real64
+
+        if (size(mean_weights) < 1 .or. size(draw) /= size(mean_weights)) then
+            error stop "Dirichlet vectors must have matching non-empty dimensions"
+        end if
+        if (concentration <= 0.0_real64) error stop "Dirichlet concentration must be positive"
+        if (any(mean_weights < 0.0_real64)) error stop "Dirichlet mean weights must be non-negative"
+        if (abs(sum(mean_weights) - 1.0_real64) > tolerance) then
+            error stop "Dirichlet mean weights must sum to one"
+        end if
+
+        draw = 0.0_real64
+        do idx = 1, size(mean_weights)
+            if (mean_weights(idx) > 0.0_real64) then
+                draw(idx) = gamma_random(rng, concentration * mean_weights(idx), 1.0_real64)
+            end if
+        end do
+        total = sum(draw)
+        if (total <= 0.0_real64) error stop "Dirichlet draw has zero total mass"
+        draw = draw / total
+    end subroutine dirichlet_random
 
     real(real64) function standard_normal_random(rng) result(value)
         type(rng_state), intent(inout) :: rng
