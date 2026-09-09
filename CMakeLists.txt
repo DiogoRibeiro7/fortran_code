@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(fortran_epidemiology VERSION 0.14.0 LANGUAGES Fortran)
+project(fortran_epidemiology VERSION 0.15.0 LANGUAGES Fortran)
 
 include(CTest)
 find_package(LAPACK REQUIRED)
@@ -37,6 +37,7 @@ add_library(epidemiology
     src/age_structured_sir_m.f90
     src/growth_inference_m.f90
     src/gamma_distribution_m.f90
+    src/generation_interval_fit_m.f90
     src/renewal_rt_m.f90
     src/negative_binomial_rt_m.f90
     src/reporting_delay_nowcast_m.f90
@@ -109,6 +110,10 @@ enable_strict_fortran(nowcast_rt_uncertainty_example)
 add_executable(generation_interval_uncertainty_example app/generation_interval_uncertainty_example.f90)
 target_link_libraries(generation_interval_uncertainty_example PRIVATE epidemiology)
 enable_strict_fortran(generation_interval_uncertainty_example)
+
+add_executable(generation_interval_fit_example app/generation_interval_fit_example.f90)
+target_link_libraries(generation_interval_fit_example PRIVATE epidemiology)
+enable_strict_fortran(generation_interval_fit_example)
 
 if(BUILD_TESTING)
     add_executable(test_factorial test/test_factorial.f90)
@@ -185,4 +190,9 @@ if(BUILD_TESTING)
     target_link_libraries(test_generation_interval_uncertainty PRIVATE epidemiology)
     enable_strict_fortran(test_generation_interval_uncertainty)
     add_test(NAME generation_interval_uncertainty COMMAND test_generation_interval_uncertainty)
+
+    add_executable(test_generation_interval_fit test/test_generation_interval_fit.f90)
+    target_link_libraries(test_generation_interval_fit PRIVATE epidemiology)
+    enable_strict_fortran(test_generation_interval_fit)
+    add_test(NAME generation_interval_fit COMMAND test_generation_interval_fit)
 endif()
