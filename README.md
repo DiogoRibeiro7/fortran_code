@@ -2,7 +2,7 @@
 
 A compact epidemiological modelling codebase written in modern Fortran.
 
-The project is developed as a numerically explicit, testable implementation of classical and computational epidemiology. The scientific core includes deterministic and stochastic compartmental models, intervention schedules, demographic turnover, age-structured transmission, generation-interval inference, renewal-equation Rt estimation, overdispersed surveillance likelihoods, and reporting-delay nowcasting.
+The project is developed as a numerically explicit, testable implementation of classical and computational epidemiology. The scientific core includes deterministic and stochastic compartmental models, intervention schedules, demographic turnover, age-structured transmission, generation-interval inference, renewal-equation Rt estimation, overdispersed surveillance likelihoods, reporting-delay nowcasting, and an integrated nowcast-corrected Rt pipeline.
 
 ## Models
 
@@ -79,7 +79,23 @@ The `reporting_delay_nowcast_m` module provides:
 - expected future reports still to arrive;
 - vectorized nowcasts across multiple event days.
 
-This distinction is important operationally: a fall in recent reported counts can reflect right truncation rather than a genuine fall in incidence.
+## Nowcast-corrected Rt pipeline
+
+The `nowcasted_rt_pipeline_m` module connects reporting-delay correction directly to renewal-equation inference:
+
+\[
+\text{reported counts}
+\rightarrow
+\text{posterior mean nowcast}
+\rightarrow
+\Lambda_t
+\rightarrow
+R_t.
+\]
+
+This matters near the present. If latent incidence is flat but recent reporting completeness falls with event-day age, raw reported counts decline mechanically and can produce a spurious estimate \(R_t<1\). The integrated pipeline computes both the raw-report Rt series and the nowcast-corrected series so this bias can be inspected directly.
+
+The current implementation uses the posterior mean of latent incidence as a plug-in input to the renewal estimator. This corrects right truncation but does not yet propagate nowcast uncertainty into the Rt posterior. That limitation is explicit and reserved for a later Monte Carlo uncertainty-propagation layer.
 
 ## Build
 
@@ -111,9 +127,10 @@ ctest --test-dir build --output-on-failure
 ./build/renewal_rt_example
 ./build/negative_binomial_rt_example
 ./build/reporting_delay_nowcast_example
+./build/nowcasted_rt_pipeline_example
 ```
 
-The reporting-delay example contrasts raw reported counts with posterior nowcasts, reporting completeness, credible intervals, and expected future reports.
+The nowcasted Rt pipeline example holds latent incidence constant while reporting completeness declines near the analysis date. It prints raw and corrected Rt side by side, demonstrating how right truncation can mimic falling transmission.
 
 ## Repository layout
 
@@ -132,7 +149,7 @@ test/  scientific and numerical regression tests
 5. age-structured and contact-matrix transmission;
 6. generation intervals, growth rates, and reproduction-number estimation;
 7. Poisson and negative-binomial renewal-equation Rt inference;
-8. reporting delays, nowcasting, and surveillance-data uncertainty;
+8. reporting delays, nowcasting, integrated surveillance pipelines, and uncertainty propagation;
 9. spatial/metapopulation models and real-data interfaces;
 10. optional Python interoperability while keeping the modelling kernel in Fortran.
 
