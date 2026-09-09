@@ -8,7 +8,7 @@ module random_distributions_m
 
 contains
 
-    real(real64) function gamma_random(rng, shape, rate) result(value)
+    recursive real(real64) function gamma_random(rng, shape, rate) result(value)
         type(rng_state), intent(inout) :: rng
         real(real64), intent(in) :: shape, rate
         real(real64) :: d, c, x, v, u
@@ -91,7 +91,7 @@ contains
         end do
     end function poisson_random
 
-    recursive real(real64) function standard_normal_random(rng) result(value)
+    real(real64) function standard_normal_random(rng) result(value)
         type(rng_state), intent(inout) :: rng
         real(real64) :: u1, u2
         real(real64), parameter :: two_pi = 2.0_real64 * acos(-1.0_real64)
