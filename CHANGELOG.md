@@ -8,10 +8,65 @@ The project evolved from the earlier `fortran_code` repository into a focused ep
 
 ### Planned
 
-- Bootstrap uncertainty propagation for mixed finite-interval and right-censored generation-interval data.
-- Better treatment of uncertain transmission links and exposure-window uncertainty.
+- Observation-window and truncation correction for transmission-pair studies.
 - Estimation of reporting-delay distributions from reporting triangles rather than treating delay probabilities as fixed inputs.
+- Propagation of fitted reporting-delay uncertainty through nowcasting and `Rt` inference.
 - Broader real-data interfaces and reproducible surveillance workflows.
+
+## [0.21.0] - 2026-09-10
+
+### Added
+
+- Generation-interval inference for infectees with multiple plausible candidate infectors.
+- Candidate-level finite-interval and right-censored likelihood contributions.
+- Marginalization over candidate infector identity using externally supplied non-negative link weights normalized within infectee.
+- Numerically stable log-sum-exp evaluation of each infectee-level mixture likelihood.
+- Flat candidate-array representation with contiguous start/end ranges per infectee.
+- `uncertain_infector_generation_interval_example`.
+- `docs/uncertain-infector-generation-interval.md`.
+
+### Scientific notes
+
+- The infectee-level likelihood is
+  \[
+  L_i(k,\beta)=\sum_j \tilde\pi_{ij}L_{ij}(k,\beta),
+  \]
+  where each candidate contribution may be either a finite censoring interval or a right-censored survival probability.
+- Candidate weights are treated as external evidence rather than estimated jointly with the generation-interval model.
+- Structural regression tests verify single-candidate reduction, duplicate-candidate invariance, and the hard-assignment limit under extreme candidate weights.
+
+### Changed
+
+- Project version advanced to `0.21.0`.
+
+### Pull request
+
+- PR #22: `Marginalize uncertain infector identity in generation-interval inference`.
+
+## [0.20.0] - 2026-09-10
+
+### Added
+
+- Bootstrap propagation of mixed finite-interval and right-censored generation-interval uncertainty into renewal-equation `Rt` inference.
+- Resampling of complete transmission-pair records `(L_i,U_i,delta_i)`, preserving censoring type within each bootstrap observation.
+- Mixed-censoring Gamma refitting inside every successful bootstrap replicate.
+- Propagation of fitted generation-interval uncertainty together with reporting-delay completion uncertainty and renewal posterior uncertainty.
+- Explicit requested-versus-converged bootstrap counts when resamples become non-identifiable or numerical fits fail.
+- `mixed_censored_generation_interval_uncertainty_example`.
+- `docs/mixed-censored-generation-interval-uncertainty.md`.
+
+### Scientific notes
+
+- Bootstrap samples with fewer than two finite records are skipped rather than repaired with invented information.
+- The finite-only uncertainty path remains available as a separate API, keeping censoring semantics explicit.
+
+### Changed
+
+- Project version advanced to `0.20.0`.
+
+### Pull request
+
+- PR #21: `Propagate mixed-censoring generation-interval uncertainty into Rt`.
 
 ## [0.19.0] - 2026-09-10
 
