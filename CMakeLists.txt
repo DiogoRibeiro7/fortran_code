@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(fortran_epidemiology VERSION 0.18.0 LANGUAGES Fortran)
+project(fortran_epidemiology VERSION 0.19.0 LANGUAGES Fortran)
 
 include(CTest)
 find_package(LAPACK REQUIRED)
@@ -93,6 +93,7 @@ set(EPIDEMIOLOGY_EXAMPLES
     fitted_generation_interval_uncertainty_example
     interval_censored_generation_interval_example
     interval_censored_generation_interval_uncertainty_example
+    mixed_censored_generation_interval_example
 )
 foreach(example_name IN LISTS EPIDEMIOLOGY_EXAMPLES)
     add_epidemiology_example(${example_name})
@@ -127,6 +128,7 @@ if(BUILD_TESTING)
         fitted_generation_interval_uncertainty
         interval_censored_generation_interval
         interval_censored_generation_interval_uncertainty
+        mixed_censored_generation_interval
     )
     foreach(test_name IN LISTS EPIDEMIOLOGY_TESTS)
         add_epidemiology_test(${test_name})

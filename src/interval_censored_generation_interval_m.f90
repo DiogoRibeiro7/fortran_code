@@ -1,12 +1,13 @@
 module interval_censored_generation_interval_m
     use iso_fortran_env, only: real64
-    use gamma_distribution_m, only: regularized_gamma_p
+    use gamma_distribution_m, only: regularized_gamma_p, regularized_gamma_q
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     implicit none
     private
 
     public :: interval_censored_gamma_fit
     public :: fit_interval_censored_gamma, interval_censored_gamma_log_likelihood
+    public :: fit_mixed_censored_gamma, mixed_censored_gamma_log_likelihood
     public :: discretize_interval_censored_gamma
 
     type :: interval_censored_gamma_fit
@@ -28,23 +29,45 @@ contains
     subroutine fit_interval_censored_gamma(lower, upper, fit)
         real(real64), intent(in) :: lower(:), upper(:)
         type(interval_censored_gamma_fit), intent(out) :: fit
+        logical, allocatable :: right_censored(:)
+
+        allocate(right_censored(size(lower)))
+        right_censored = .false.
+        call fit_mixed_censored_gamma(lower, upper, right_censored, fit)
+    end subroutine fit_interval_censored_gamma
+
+    subroutine fit_mixed_censored_gamma(lower, upper, right_censored, fit)
+        real(real64), intent(in) :: lower(:), upper(:)
+        logical, intent(in) :: right_censored(:)
+        type(interval_censored_gamma_fit), intent(out) :: fit
         real(real64), parameter :: x_tolerance = 1.0e-10_real64
         real(real64), parameter :: f_tolerance = 1.0e-10_real64
         integer, parameter :: max_iterations = 1000
         real(real64) :: simplex(2,3), f(3), centroid(2), reflected(2), expanded(2), contracted(2)
         real(real64) :: f_reflected, f_expanded, f_contracted, span_x, span_f
-        real(real64) :: mean_mid, var_mid, shape0, rate0
-        real(real64), allocatable :: midpoint(:)
-        integer :: iteration
+        real(real64) :: mean_mid, var_mid, shape0, rate0, width_reference
+        real(real64), allocatable :: pseudo_midpoint(:)
+        integer :: iteration, idx
 
-        call validate_intervals(lower, upper)
+        call validate_mixed_intervals(lower, upper, right_censored)
         fit = interval_censored_gamma_fit()
         fit%n_intervals = size(lower)
 
-        allocate(midpoint(size(lower)))
-        midpoint = 0.5_real64 * (lower + upper)
-        mean_mid = sum(midpoint) / real(size(midpoint), real64)
-        var_mid = sum((midpoint - mean_mid)**2) / real(max(1, size(midpoint)-1), real64)
+        width_reference = sum(pack(upper - lower, .not. right_censored)) / &
+            real(count(.not. right_censored), real64)
+        width_reference = max(width_reference, 1.0_real64)
+
+        allocate(pseudo_midpoint(size(lower)))
+        do idx = 1, size(lower)
+            if (right_censored(idx)) then
+                pseudo_midpoint(idx) = lower(idx) + width_reference
+            else
+                pseudo_midpoint(idx) = 0.5_real64 * (lower(idx) + upper(idx))
+            end if
+        end do
+
+        mean_mid = sum(pseudo_midpoint) / real(size(pseudo_midpoint), real64)
+        var_mid = sum((pseudo_midpoint - mean_mid)**2) / real(max(1, size(pseudo_midpoint)-1), real64)
         if (var_mid <= tiny(1.0_real64)) return
         shape0 = max(1.0e-6_real64, mean_mid * mean_mid / var_mid)
         rate0 = max(1.0e-6_real64, mean_mid / var_mid)
@@ -52,9 +75,9 @@ contains
         simplex(:,1) = [log(shape0), log(rate0)]
         simplex(:,2) = simplex(:,1) + [0.15_real64, 0.0_real64]
         simplex(:,3) = simplex(:,1) + [0.0_real64, 0.15_real64]
-        f(1) = objective(simplex(:,1), lower, upper)
-        f(2) = objective(simplex(:,2), lower, upper)
-        f(3) = objective(simplex(:,3), lower, upper)
+        f(1) = objective(simplex(:,1), lower, upper, right_censored)
+        f(2) = objective(simplex(:,2), lower, upper, right_censored)
+        f(3) = objective(simplex(:,3), lower, upper, right_censored)
 
         do iteration = 1, max_iterations
             call sort_simplex(simplex, f)
@@ -65,11 +88,11 @@ contains
 
             centroid = 0.5_real64 * (simplex(:,1) + simplex(:,2))
             reflected = centroid + (centroid - simplex(:,3))
-            f_reflected = objective(reflected, lower, upper)
+            f_reflected = objective(reflected, lower, upper, right_censored)
 
             if (f_reflected < f(1)) then
                 expanded = centroid + 2.0_real64 * (reflected - centroid)
-                f_expanded = objective(expanded, lower, upper)
+                f_expanded = objective(expanded, lower, upper, right_censored)
                 if (f_expanded < f_reflected) then
                     simplex(:,3) = expanded
                     f(3) = f_expanded
@@ -83,21 +106,21 @@ contains
             else
                 if (f_reflected < f(3)) then
                     contracted = centroid + 0.5_real64 * (reflected - centroid)
-                    f_contracted = objective(contracted, lower, upper)
+                    f_contracted = objective(contracted, lower, upper, right_censored)
                     if (f_contracted <= f_reflected) then
                         simplex(:,3) = contracted
                         f(3) = f_contracted
                     else
-                        call shrink_simplex(simplex, f, lower, upper)
+                        call shrink_simplex(simplex, f, lower, upper, right_censored)
                     end if
                 else
                     contracted = centroid + 0.5_real64 * (simplex(:,3) - centroid)
-                    f_contracted = objective(contracted, lower, upper)
+                    f_contracted = objective(contracted, lower, upper, right_censored)
                     if (f_contracted < f(3)) then
                         simplex(:,3) = contracted
                         f(3) = f_contracted
                     else
-                        call shrink_simplex(simplex, f, lower, upper)
+                        call shrink_simplex(simplex, f, lower, upper, right_censored)
                     end if
                 end if
             end if
@@ -111,15 +134,28 @@ contains
         fit%sd = sqrt(fit%shape) / fit%rate
         fit%log_likelihood = -f(1)
         fit%converged = iteration <= max_iterations .and. ieee_is_finite(fit%log_likelihood)
-        if (fit%converged) call observed_standard_errors(lower, upper, simplex(:,1), fit)
-    end subroutine fit_interval_censored_gamma
+        if (fit%converged) then
+            call observed_standard_errors(lower, upper, right_censored, simplex(:,1), fit)
+        end if
+    end subroutine fit_mixed_censored_gamma
 
     real(real64) function interval_censored_gamma_log_likelihood(lower, upper, shape, rate) result(value)
         real(real64), intent(in) :: lower(:), upper(:), shape, rate
-        real(real64) :: cdf_lower, cdf_upper, probability
+        logical, allocatable :: right_censored(:)
+
+        allocate(right_censored(size(lower)))
+        right_censored = .false.
+        value = mixed_censored_gamma_log_likelihood(lower, upper, right_censored, shape, rate)
+    end function interval_censored_gamma_log_likelihood
+
+    real(real64) function mixed_censored_gamma_log_likelihood(lower, upper, right_censored, shape, rate) &
+            result(value)
+        real(real64), intent(in) :: lower(:), upper(:), shape, rate
+        logical, intent(in) :: right_censored(:)
+        real(real64) :: p_lower, p_upper, q_lower, q_upper, probability
         integer :: idx
 
-        call validate_intervals(lower, upper)
+        call validate_mixed_intervals(lower, upper, right_censored)
         if (shape <= 0.0_real64 .or. rate <= 0.0_real64) then
             value = -huge(1.0_real64)
             return
@@ -127,16 +163,22 @@ contains
 
         value = 0.0_real64
         do idx = 1, size(lower)
-            cdf_lower = regularized_gamma_p(shape, rate * lower(idx))
-            cdf_upper = regularized_gamma_p(shape, rate * upper(idx))
-            probability = cdf_upper - cdf_lower
+            if (right_censored(idx)) then
+                probability = regularized_gamma_q(shape, rate * lower(idx))
+            else
+                p_lower = regularized_gamma_p(shape, rate * lower(idx))
+                p_upper = regularized_gamma_p(shape, rate * upper(idx))
+                q_lower = regularized_gamma_q(shape, rate * lower(idx))
+                q_upper = regularized_gamma_q(shape, rate * upper(idx))
+                probability = max(p_upper - p_lower, q_lower - q_upper)
+            end if
             if (probability <= 0.0_real64) then
                 value = -huge(1.0_real64)
                 return
             end if
             value = value + log(probability)
         end do
-    end function interval_censored_gamma_log_likelihood
+    end function mixed_censored_gamma_log_likelihood
 
     subroutine discretize_interval_censored_gamma(fit, max_lag, weights, tail_probability)
         type(interval_censored_gamma_fit), intent(in) :: fit
@@ -153,25 +195,27 @@ contains
             weights(lag) = max(0.0_real64, current_cdf - previous_cdf)
             previous_cdf = current_cdf
         end do
-        tail_probability = max(0.0_real64, 1.0_real64 - previous_cdf)
+        tail_probability = regularized_gamma_q(fit%shape, fit%rate * real(max_lag, real64))
         captured_mass = sum(weights)
         if (captured_mass <= 0.0_real64) error stop "no renewal probability captured"
         weights = weights / captured_mass
     end subroutine discretize_interval_censored_gamma
 
-    real(real64) function objective(z, lower, upper) result(value)
+    real(real64) function objective(z, lower, upper, right_censored) result(value)
         real(real64), intent(in) :: z(2), lower(:), upper(:)
-        value = -interval_censored_gamma_log_likelihood(lower, upper, exp(z(1)), exp(z(2)))
+        logical, intent(in) :: right_censored(:)
+        value = -mixed_censored_gamma_log_likelihood(lower, upper, right_censored, exp(z(1)), exp(z(2)))
     end function objective
 
-    subroutine shrink_simplex(simplex, f, lower, upper)
+    subroutine shrink_simplex(simplex, f, lower, upper, right_censored)
         real(real64), intent(inout) :: simplex(2,3), f(3)
         real(real64), intent(in) :: lower(:), upper(:)
+        logical, intent(in) :: right_censored(:)
         integer :: idx
 
         do idx = 2, 3
             simplex(:,idx) = simplex(:,1) + 0.5_real64 * (simplex(:,idx) - simplex(:,1))
-            f(idx) = objective(simplex(:,idx), lower, upper)
+            f(idx) = objective(simplex(:,idx), lower, upper, right_censored)
         end do
     end subroutine shrink_simplex
 
@@ -194,8 +238,9 @@ contains
         end do
     end subroutine sort_simplex
 
-    subroutine observed_standard_errors(lower, upper, z, fit)
+    subroutine observed_standard_errors(lower, upper, right_censored, z, fit)
         real(real64), intent(in) :: lower(:), upper(:), z(2)
+        logical, intent(in) :: right_censored(:)
         type(interval_censored_gamma_fit), intent(inout) :: fit
         real(real64), parameter :: h = 1.0e-4_real64
         real(real64) :: f0, fp1, fm1, fp2, fm2, fpp, fpm, fmp, fmm
@@ -204,15 +249,15 @@ contains
 
         dz1 = [h, 0.0_real64]
         dz2 = [0.0_real64, h]
-        f0 = objective(z, lower, upper)
-        fp1 = objective(z + dz1, lower, upper)
-        fm1 = objective(z - dz1, lower, upper)
-        fp2 = objective(z + dz2, lower, upper)
-        fm2 = objective(z - dz2, lower, upper)
-        fpp = objective(z + dz1 + dz2, lower, upper)
-        fpm = objective(z + dz1 - dz2, lower, upper)
-        fmp = objective(z - dz1 + dz2, lower, upper)
-        fmm = objective(z - dz1 - dz2, lower, upper)
+        f0 = objective(z, lower, upper, right_censored)
+        fp1 = objective(z + dz1, lower, upper, right_censored)
+        fm1 = objective(z - dz1, lower, upper, right_censored)
+        fp2 = objective(z + dz2, lower, upper, right_censored)
+        fm2 = objective(z - dz2, lower, upper, right_censored)
+        fpp = objective(z + dz1 + dz2, lower, upper, right_censored)
+        fpm = objective(z + dz1 - dz2, lower, upper, right_censored)
+        fmp = objective(z - dz1 + dz2, lower, upper, right_censored)
+        fmm = objective(z - dz1 - dz2, lower, upper, right_censored)
         h11 = (fp1 - 2.0_real64*f0 + fm1) / (h*h)
         h22 = (fp2 - 2.0_real64*f0 + fm2) / (h*h)
         h12 = (fpp - fpm - fmp + fmm) / (4.0_real64*h*h)
@@ -227,14 +272,21 @@ contains
         fit%mean_se = sqrt(mean_variance)
     end subroutine observed_standard_errors
 
-    subroutine validate_intervals(lower, upper)
+    subroutine validate_mixed_intervals(lower, upper, right_censored)
         real(real64), intent(in) :: lower(:), upper(:)
+        logical, intent(in) :: right_censored(:)
 
-        if (size(lower) < 2 .or. size(lower) /= size(upper)) then
-            error stop "interval bounds must have matching length >= 2"
+        if (size(lower) < 2 .or. size(lower) /= size(upper) .or. &
+                size(lower) /= size(right_censored)) then
+            error stop "censoring arrays must have matching length >= 2"
         end if
         if (any(lower < 0.0_real64)) error stop "lower bounds must be non-negative"
-        if (any(upper <= lower)) error stop "each upper bound must exceed its lower bound"
-    end subroutine validate_intervals
+        if (any((.not. right_censored) .and. upper <= lower)) then
+            error stop "finite interval upper bounds must exceed lower bounds"
+        end if
+        if (count(.not. right_censored) < 2) then
+            error stop "at least two finite intervals are required for a stable fit"
+        end if
+    end subroutine validate_mixed_intervals
 
 end module interval_censored_generation_interval_m
