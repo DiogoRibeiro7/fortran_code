@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(fortran_epidemiology VERSION 0.20.0 LANGUAGES Fortran)
+project(fortran_epidemiology VERSION 0.21.0 LANGUAGES Fortran)
 
 include(CTest)
 find_package(LAPACK REQUIRED)
@@ -52,6 +52,7 @@ add_library(epidemiology
     src/gamma_distribution_m.f90
     src/generation_interval_fit_m.f90
     src/interval_censored_generation_interval_m.f90
+    src/uncertain_infector_generation_interval_m.f90
     src/renewal_rt_m.f90
     src/negative_binomial_rt_m.f90
     src/reporting_delay_nowcast_m.f90
@@ -96,6 +97,7 @@ set(EPIDEMIOLOGY_EXAMPLES
     interval_censored_generation_interval_uncertainty_example
     mixed_censored_generation_interval_example
     mixed_censored_generation_interval_uncertainty_example
+    uncertain_infector_generation_interval_example
 )
 foreach(example_name IN LISTS EPIDEMIOLOGY_EXAMPLES)
     add_epidemiology_example(${example_name})
@@ -132,6 +134,7 @@ if(BUILD_TESTING)
         interval_censored_generation_interval_uncertainty
         mixed_censored_generation_interval
         mixed_censored_generation_interval_uncertainty
+        uncertain_infector_generation_interval
     )
     foreach(test_name IN LISTS EPIDEMIOLOGY_TESTS)
         add_epidemiology_test(${test_name})
