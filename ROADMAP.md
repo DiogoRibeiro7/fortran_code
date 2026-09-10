@@ -1,23 +1,24 @@
 # Roadmap
 
-This roadmap describes the planned scientific and engineering evolution of `fortran-epidemiology` beyond the current `0.19.0` baseline.
+This roadmap describes the planned scientific and engineering evolution of `fortran-epidemiology` beyond the current `0.21.0` baseline.
 
-The project has already grown from a small modern-Fortran numerical codebase into a reproducible epidemiological modelling and surveillance-inference library. Future work should therefore prioritize methodological coherence, uncertainty propagation, real-data usability, and numerical reliability over adding isolated model variants.
+The project has grown from a small modern-Fortran numerical codebase into a reproducible epidemiological modelling and surveillance-inference library. Future work should prioritize methodological coherence, uncertainty propagation, realistic observation processes, real-data usability, and numerical reliability over adding isolated model variants.
 
 ## Guiding principles
 
 Development should follow a few explicit rules:
 
 1. **Statistical assumptions must be visible.** New inference routines should expose the observation model, parameterization, uncertainty semantics, and validity conditions rather than hiding them behind generic APIs.
-2. **Uncertainty should be propagated, not silently conditioned away.** Whenever a downstream quantity depends on an estimated upstream object, the roadmap should prefer principled propagation over plug-in shortcuts unless the latter are clearly labelled.
-3. **Numerical stability is part of scientific correctness.** Tail probabilities, likelihood differences, root solvers, matrix calculations, and random generators should be tested against analytic or independent references.
-4. **Deterministic and stochastic implementations should cross-check one another whenever possible.** Large-population stochastic means, analytic reproduction numbers, and limiting cases provide important scientific regression targets.
+2. **Uncertainty should be propagated, not silently conditioned away.** Whenever a downstream quantity depends on an estimated upstream object, prefer principled propagation over plug-in shortcuts unless the latter are clearly labelled.
+3. **Numerical stability is part of scientific correctness.** Tail probabilities, likelihood differences, root solvers, matrix calculations, optimization, and random generators should be tested against analytic or independent references.
+4. **Deterministic and stochastic implementations should cross-check one another whenever possible.** Large-population stochastic means, analytic reproduction numbers, and limiting cases provide strong scientific regression targets.
 5. **One coherent capability per pull request.** Feature branches should remain narrow and merge only after strict CI and scientific regression tests pass.
 6. **Real-data interfaces should not weaken the modelling kernel.** The Fortran library should remain usable independently of Python, R, notebooks, or external services.
+7. **Observation processes matter.** Censoring, truncation, reporting delay, ascertainment, and uncertain transmission links should be modelled explicitly when they affect inference.
 
-## Current baseline: 0.19.0
+## Current baseline: 0.21.0
 
-The current codebase already includes:
+The current codebase includes:
 
 - deterministic SIR, SEIR, and SEIRS models;
 - intervention schedules and vaccination/demography;
@@ -35,11 +36,14 @@ The current codebase already includes:
 - interval-censored generation-interval fitting;
 - bootstrap uncertainty propagation for interval-censored pair records;
 - mixed finite-interval and right-censored generation-interval likelihoods;
+- mixed-censoring bootstrap propagation into `Rt`;
+- uncertain-infector generation-interval inference through candidate-mixture likelihoods;
 - stable Gamma CDF, survival, and quantile infrastructure;
 - portable seeded random-number generation;
-- strict CMake/CTest/GitHub Actions validation.
+- strict CMake/CTest/GitHub Actions validation;
+- repository-level `CHANGELOG.md` and `ROADMAP.md`.
 
-The current strongest end-to-end surveillance pipeline can therefore be viewed schematically as
+The strongest current surveillance/inference chain can be viewed schematically as
 
 \[
 \text{transmission-pair information}
@@ -55,137 +59,168 @@ The current strongest end-to-end surveillance pipeline can therefore be viewed s
 R_t.
 \]
 
-The next releases should make every uncertain link in that chain estimable from realistic data.
+The next releases should make the observation and ascertainment mechanisms in that chain increasingly estimable from realistic data.
+
+---
+
+# Completed near-term milestones
+
+## 0.20.0 — Mixed-censoring uncertainty propagation
+
+**Status: completed.**
+
+The point-estimate generation-interval model already handled finite intervals and right-censored observations. Version `0.20.0` extended uncertainty propagation so complete mixed-censoring records are resampled together.
+
+Implemented:
+
+- pair-record bootstrapping of `(L_i,U_i,delta_i)`;
+- preservation of censoring type under resampling;
+- mixed Gamma refitting inside each bootstrap replicate;
+- propagation of fitted renewal-weight uncertainty through reporting-delay completion and renewal `Rt` inference;
+- explicit requested-versus-converged bootstrap counts;
+- fixed-seed regression coverage;
+- dedicated example and methods documentation.
+
+Scientific rule retained: bootstrap samples that do not contain enough finite information for a stable fit are skipped rather than repaired with invented data.
+
+## 0.21.0 — Uncertain infector identity
+
+**Status: completed at the point-estimate likelihood level.**
+
+For infectee `i` with candidate infectors `j`, candidate identity is marginalized rather than hard-assigned:
+
+\[
+L_i(k,\beta)=\sum_j \tilde\pi_{ij}L_{ij}(k,\beta),
+\qquad
+\tilde\pi_{ij}=\frac{\pi_{ij}}{\sum_h\pi_{ih}}.
+\]
+
+Each candidate can contribute either a finite censoring probability or a right-censored survival probability.
+
+Implemented:
+
+- flat candidate-transmission representation with contiguous per-infectee ranges;
+- externally supplied non-negative candidate/link weights;
+- numerically stable log-sum-exp mixture likelihood;
+- log-scale Gamma shape/rate optimization;
+- single-candidate reduction to the existing censoring likelihood;
+- duplicate-candidate invariance;
+- hard-assignment limiting behavior under extreme candidate weights;
+- example and methods documentation.
+
+Remaining extensions for uncertain infectors are tracked below: posterior/normalized candidate diagnostics, infectee-level bootstrap propagation, and eventual joint models for link evidence.
 
 ---
 
 # Near-term roadmap
 
-## 0.20.x — Complete mixed-censoring uncertainty propagation
+## 0.22.x — Observation-window and truncation corrections for transmission-pair studies
 
 ### Priority: very high
 
-The point-estimate generation-interval model now handles finite intervals and right-censored observations, but the bootstrap uncertainty pipeline still assumes finite censoring windows only.
+Transmission pairs are generally observed inside finite study windows. Long generation intervals can be preferentially excluded near study boundaries, creating backward or forward truncation bias even when censoring itself is modelled correctly.
 
-### Planned work
+### Planned statistical model
 
-- Extend pair-record bootstrapping to a mixed-censoring record type.
-- Preserve censoring type when resampling.
-- Refit the mixed Gamma likelihood inside every bootstrap replicate.
-- Propagate the resulting renewal-weight uncertainty into the existing reporting-delay/`Rt` Monte Carlo pipeline.
-- Report convergence rates separately for finite-only and mixed-censoring bootstrap regimes.
-- Add regression tests showing that heavier right censoring increases uncertainty in the fitted generation-time tail.
-
-### Acceptance criteria
-
-- Exact fixed-seed reproducibility.
-- All-finite input reproduces the existing interval-censored bootstrap path.
-- Mixed-censoring bootstrap diagnostics expose shape, rate, mean generation interval, and tail-mass uncertainty.
-- `Rt` summaries are based only on successful fitted draws, with explicit effective draw counts.
-
----
-
-## 0.21.x — Uncertain infector identity
-
-### Motivation
-
-Real transmission-pair datasets often contain several plausible infectors for one infectee. Treating the selected infector as known can bias the generation-interval distribution.
-
-### Planned model
-
-For infectee `i` with candidate infectors `j`, use candidate probabilities or likelihood weights
+Introduce explicit pair-eligibility conditioning. If a latent generation interval `G` would only enter the observed sample when it satisfies a study-specific eligibility event `A_i`, use a conditional likelihood of the form
 
 \[
-\pi_{ij},\qquad \sum_j\pi_{ij}=1,
-\]
-
-and marginalize rather than hard-assign:
-
-\[
-L_i(k,\beta)
+L_i(\theta\mid A_i)
 =
-\sum_j
-\pi_{ij}
-P(L_{ij}<G\le U_{ij}\mid k,\beta).
+\frac{P_\theta(\text{observed pair information}_i)}
+     {P_\theta(A_i)}.
 \]
 
-Right-censored candidate links should use survival contributions analogously.
+The exact denominator must reflect the study design rather than a generic truncation correction.
 
 ### Planned work
 
-- Candidate-transmission record structure.
-- Mixture likelihood with numerically stable log-sum-exp evaluation.
-- Optional user-supplied prior weights on candidate infectors.
-- Diagnostics for posterior/normalized candidate-link weights.
-- Bootstrap resampling at the infectee level, not the candidate-link level.
+- explicit study-start and study-end times;
+- candidate-specific infector/infectee observation windows where needed;
+- conditional likelihood correcting for pair eligibility;
+- support for finite, right-censored, and uncertain-infector records where mathematically identifiable;
+- synthetic studies demonstrating bias in naive fitting under strong truncation;
+- comparison of naive, censoring-aware, and truncation-corrected fits;
+- bootstrap uncertainty that respects study-window eligibility rather than resampling impossible records.
 
 ### Acceptance criteria
 
-- Single-candidate records reduce exactly to current censoring likelihoods.
-- Equal duplicate candidates do not change the likelihood.
-- Extreme candidate probabilities recover the corresponding hard-assignment limit.
+- no correction when the study window is effectively unbounded;
+- recovery of known Gamma parameters in synthetic truncated samples;
+- demonstrable reduction of long-interval bias near study boundaries;
+- stable likelihood evaluation when eligibility probabilities are small;
+- explicit failure when the supplied study design does not identify the requested correction.
 
 ---
 
-## 0.22.x — Observation-window and truncation corrections for transmission-pair studies
+## 0.23.x — Bootstrap uncertainty with uncertain infector identity
 
 ### Motivation
 
-Transmission pairs are generally sampled inside finite study windows. Long generation intervals can be preferentially excluded near the study boundaries, producing backward/forward truncation bias.
+Version `0.21.0` marginalizes candidate infectors in the likelihood, but uncertainty propagation should also preserve the clustered structure of candidates belonging to one infectee.
 
 ### Planned work
 
-- Explicit study-start and study-end dates.
-- Conditional likelihood correcting for pair eligibility under the observation window.
-- Tests demonstrating bias in naive fitting under strong truncation.
-- Comparison of naive, interval-censored, and truncation-corrected fits on synthetic data.
-- Bootstrap uncertainty respecting study-window eligibility.
+- bootstrap at the infectee level, not the candidate-link level;
+- preserve all candidate links and their weights when an infectee is resampled;
+- refit the uncertain-infector mixture likelihood in each bootstrap replicate;
+- propagate fitted generation-interval uncertainty into renewal weights and `Rt`;
+- report effective bootstrap sample size and convergence diagnostics;
+- expose candidate-weight sensitivity diagnostics.
 
-### Scientific target
+### Acceptance criteria
 
-Make generation-interval inference depend on the actual ascertainment process rather than only on observed pair intervals.
+- one-candidate-per-infectee data reduce to the current mixed-censoring bootstrap pipeline;
+- duplicate identical candidates remain invariant under the bootstrap likelihood;
+- fixed-seed reproducibility;
+- increasing the number of independent infectees reduces fitted-parameter uncertainty in controlled synthetic experiments.
 
 ---
 
-## 0.23.x — Estimate reporting delays from reporting triangles
+## 0.24.x — Estimate reporting delays from reporting triangles
 
 ### Motivation
 
-The current nowcasting layer treats the reporting-delay PMF as known. In operational surveillance this distribution should usually be estimated from historical revisions.
+The current nowcasting layer treats the reporting-delay PMF as known. In operational surveillance the delay distribution should generally be estimated from historical revisions.
 
 ### Planned data structure
 
 A reporting triangle containing cumulative or incremental reports by event date and report date.
 
-### Planned models
+### Initial model
 
-Initial implementation should support a transparent discrete delay model:
+Start with a transparent discrete delay distribution
 
 \[
 D\sim p_0,p_1,\ldots,p_K,
+\qquad
+\sum_{d=0}^Kp_d=1.
 \]
 
-with likelihood derived from historical reporting increments.
+The likelihood should be derived from historical reporting increments with explicit treatment of incomplete recent cohorts.
 
-Later extensions may include:
+### Planned work
 
-- weekday effects;
-- calendar-time-varying delay distributions;
-- hierarchical smoothing;
-- right truncation of recent reporting cohorts.
+- validated reporting-triangle data structure;
+- conversion between cumulative and incremental triangle representations;
+- estimation of a stationary discrete delay PMF;
+- right-truncation correction for recent reporting cohorts;
+- weekday/report-day effects as a later extension;
+- calendar-time-varying delay distributions only after the stationary model is validated.
 
 ### Acceptance criteria
 
-- Recovery of known delay probabilities in simulated triangles.
-- Correct normalization and truncation handling.
-- Plug-compatible output with `reporting_delay_nowcast_m`.
-- Bootstrap or posterior uncertainty that can feed the `Rt` Monte Carlo layer.
+- recovery of known delay probabilities in simulated triangles;
+- correct normalization and support handling;
+- no leakage from future reports into earlier analysis dates;
+- plug-compatible output with `reporting_delay_nowcast_m`;
+- bootstrap or posterior uncertainty suitable for the `Rt` Monte Carlo layer.
 
 ---
 
-## 0.24.x — Joint reporting-delay uncertainty
+## 0.25.x — Joint reporting-delay distribution uncertainty
 
-Once reporting-delay estimation exists, the current assumption of a fixed delay PMF should be removed from the full pipeline.
+Once reporting-delay estimation exists, remove the full-pipeline assumption that the delay PMF is fixed.
 
 Each Monte Carlo iteration should be able to draw
 
@@ -198,7 +233,7 @@ then use that draw to compute reporting completeness, latent incidence, and `Rt`
 The target uncertainty chain becomes
 
 \[
-\text{pair study uncertainty}
+\text{pair-study uncertainty}
 +
 \text{generation interval}
 +
@@ -209,153 +244,132 @@ The target uncertainty chain becomes
 \text{renewal }R_t.
 \]
 
+Acceptance should include decomposition diagnostics showing how much uncertainty enters from the delay distribution versus latent-incidence completion and renewal inference.
+
 ---
 
 # Medium-term roadmap
 
-## 0.25.x — Observation-model integration
+## 0.26.x — Observation-model integration
 
-The project currently has Poisson and negative-binomial renewal models, while the full nowcasting uncertainty pipeline is primarily coupled to the conjugate Poisson model.
+The project has both Poisson and negative-binomial renewal models, while the full uncertainty pipeline remains primarily coupled to the conjugate Poisson formulation.
 
-### Planned work
+Planned work:
 
-- Joint nowcast-plus-NB2 `Rt` inference.
-- Propagation of reporting and generation-time uncertainty under overdispersed observations.
-- Estimation or profiling of NB dispersion rather than requiring it to be fixed in all workflows.
-- Comparison between Poisson and NB2 model adequacy on simulated overdispersed data.
+- joint nowcast-plus-NB2 `Rt` inference;
+- propagation of reporting and generation-time uncertainty under overdispersed observations;
+- estimation or profiling of NB dispersion rather than requiring it to be fixed in every workflow;
+- model-adequacy comparisons on simulated overdispersed data;
+- limiting checks showing convergence to the Poisson pipeline as dispersion tends to infinity.
 
-### Longer-term option
+Poisson-lognormal or other observation models should be considered only if they add a clearly justified capability rather than model proliferation.
 
-Consider Poisson-lognormal or state-space observation models only if they add a clearly justified capability rather than model proliferation.
+## 0.27.x — Time-varying `Rt` smoothing and state-space inference
 
----
+Sliding windows are transparent but impose piecewise-constant transmission over a chosen window.
 
-## 0.26.x — Time-varying `Rt` smoothing and state-space inference
+Planned work:
 
-Sliding windows are transparent and robust, but they impose piecewise-constant transmission over a chosen window.
+- random-walk model on `log Rt`;
+- explicit process variance;
+- separation of process evolution from surveillance observation noise;
+- penalized/state-space estimation;
+- simulation-based calibration against known `Rt` trajectories;
+- comparisons with current sliding-window estimates.
 
-### Planned work
+Smoothing must remain an explicit prior/process layer rather than a black-box replacement for the renewal likelihood.
 
-- Random-walk model on `log Rt`.
-- Penalized/state-space estimation.
-- Separation of process evolution and surveillance observation noise.
-- Simulation-based calibration against known trajectories.
-- Comparison with existing sliding-window estimates.
+## 0.28.x — Susceptible depletion and renewal models
 
-### Principle
+Add an optional susceptible-fraction correction and document the distinction among basic, effective, and instantaneous reproduction measures.
 
-Keep the current renewal likelihood visible. Smoothing should be an explicit prior/process layer, not a black-box filter replacing the epidemiological model.
+Key validation target: consistency between renewal estimates and deterministic SIR/SEIR trajectories when susceptible depletion becomes material.
 
----
+## 0.29.x — Importation and local transmission
 
-## 0.27.x — Susceptible depletion and renewal models
-
-The current renewal formulation is primarily suited to settings where susceptible depletion is negligible or implicitly absorbed into effective transmission.
-
-### Planned work
-
-- Optional susceptible fraction correction.
-- Relationship between renewal `Rt`, effective reproduction number, and compartmental susceptible depletion.
-- Consistency tests against deterministic SIR/SEIR trajectories.
-
----
-
-## 0.28.x — Importation and local transmission
-
-### Planned work
-
-Distinguish imported incidence from locally generated incidence:
+Distinguish
 
 \[
 I_t=I_t^{\mathrm{local}}+I_t^{\mathrm{imported}}.
 \]
 
-Only locally infectious pressure should be attributed to local reproduction dynamics according to an explicitly chosen model.
+Imported cases should enter infectious pressure according to an explicit model while avoiding attribution of imported incidence to local reproduction dynamics.
 
-This is important for low-incidence settings and regional surveillance.
+This is particularly important for low-incidence and regional surveillance.
 
----
+## 0.30.x — Spatial and metapopulation transmission
 
-## 0.29.x — Spatial and metapopulation transmission
-
-### Planned scientific layer
-
-For regions `i,j`, introduce mobility/contact coupling
+For regions `i,j`, introduce mobility/contact coupling such as
 
 \[
-\lambda_i(t)
-=
-\sum_j M_{ij}(t)\,\mathcal I_j(t),
+\lambda_i(t)=\sum_jM_{ij}(t)\mathcal I_j(t),
 \]
 
 with explicit definitions for mobility and infectiousness.
 
-### Planned capabilities
+Planned capabilities:
 
-- Deterministic metapopulation SIR/SEIR models.
-- Region-specific transmission rates.
-- Mobility matrices.
-- Imported/local force-of-infection decomposition.
-- Spectral reproduction-number calculations for structured systems.
-- Stochastic metapopulation simulation where computationally reasonable.
+- deterministic metapopulation SIR/SEIR models;
+- region-specific transmission rates;
+- mobility matrices;
+- imported/local force-of-infection decomposition;
+- structured next-generation matrices and spectral reproduction numbers;
+- stochastic metapopulation simulation where computationally reasonable.
 
 ---
 
-# Advanced inference roadmap
+# Advanced generation-interval and transmission-pair inference
+
+## Candidate-link diagnostics
+
+The uncertain-infector likelihood currently treats candidate weights as external evidence. Useful next diagnostics include
+
+\[
+P(j\mid i,\hat\theta)
+\propto
+\pi_{ij}L_{ij}(\hat\theta),
+\]
+
+reported as normalized candidate responsibilities without pretending they are causal probabilities unless the link-weight model justifies that interpretation.
 
 ## Uncertain infection times from exposure histories
 
-Move beyond precomputed generation-interval censoring windows and infer infection times from exposure intervals directly.
-
-Potential hierarchy:
+Move beyond precomputed generation-interval censoring windows and infer infection times from exposure histories directly:
 
 \[
 T_i^{\mathrm{infection}}
 \sim
-p(T_i\mid\text{exposure history}),
+p(T_i\mid\text{exposure history}).
 \]
 
-followed by generation intervals derived from latent infection times.
-
-This is substantially more complex than interval censoring and should be added only after candidate-infector and study-truncation models are stable.
+Generation intervals would then be derived from latent infection times. This should follow candidate-infector and study-truncation corrections because the joint model otherwise becomes difficult to identify and validate.
 
 ## Serial interval versus generation interval
 
-Add explicit symptom-onset models so the package can distinguish:
+Add explicit symptom-onset models so the package distinguishes:
 
 - generation interval;
 - serial interval;
 - incubation period;
 - onset-to-transmission timing.
 
-The library should avoid treating these quantities as interchangeable.
+The library must never silently substitute one for another.
 
 ## Time-varying generation intervals
 
-Interventions and behavior changes can alter generation intervals as well as transmission intensity.
-
-Potential model:
+Interventions, isolation, behavior, or pathogen evolution can change generation intervals as well as transmission intensity. A possible future model uses
 
 \[
 w_t(s)
 \]
 
-rather than a single fixed `w(s)`.
+instead of one fixed `w(s)`.
 
-This requires careful identifiability work because simultaneous changes in `Rt` and `w_t` can be difficult to distinguish from incidence alone.
+This requires careful identifiability analysis because simultaneous changes in `Rt` and `w_t` can be difficult to distinguish from incidence alone.
 
 ## Hierarchical generation-interval models
 
-Potential grouping variables include:
-
-- epidemic phase;
-- variant/pathogen strain;
-- age group;
-- vaccination status;
-- setting;
-- calendar period.
-
-A hierarchical model should be introduced only with strong regression coverage and clear shrinkage semantics.
+Potential grouping variables include epidemic phase, strain/variant, age, vaccination status, setting, or calendar period. Hierarchical models should only be introduced with clear shrinkage semantics and strong synthetic recovery tests.
 
 ---
 
@@ -363,35 +377,35 @@ A hierarchical model should be introduced only with strong regression coverage a
 
 ## Additional intervention mechanics
 
-Possible additions include:
+Potential extensions include:
 
 - vaccination with imperfect efficacy;
 - waning vaccine protection;
 - treatment reducing infectious duration;
 - isolation/quarantine compartments;
 - importation seeding;
-- seasonally varying transmission.
+- seasonal transmission.
 
 Each extension should have a clear epidemiological quantity or validation target rather than simply increasing compartment count.
 
-## Adaptive and higher-order ODE integration
+## Adaptive ODE integration
 
-Current deterministic models use explicit RK4. Potential improvements:
+Current deterministic models use explicit RK4. Potential optional improvements:
 
 - adaptive Runge-Kutta integration;
 - user-defined tolerances;
-- event handling at intervention boundaries;
-- convergence comparisons against RK4 reference trajectories.
+- exact event handling at intervention boundaries;
+- convergence comparisons against fixed-step RK4 reference trajectories.
 
-This should remain optional because fixed-step RK4 is simple, reproducible, and useful for testing.
+Fixed-step RK4 should remain available because it is simple, reproducible, and valuable for testing.
 
 ## Faster stochastic simulation
 
-For large populations or high event rates:
+For large populations or high event rates consider:
 
 - tau-leaping;
 - hybrid stochastic/deterministic methods;
-- bounded error diagnostics against exact Gillespie simulation.
+- bounded-error diagnostics against exact Gillespie simulation.
 
 Exact SSA remains the scientific reference implementation.
 
@@ -401,22 +415,21 @@ Exact SSA remains the scientific reference implementation.
 
 ## Stable data input layer
 
-Add explicit parsers/interfaces for:
+Add validated interfaces for:
 
 - daily incidence CSV files;
 - reporting triangles;
 - transmission-pair tables;
-- censoring metadata;
+- candidate-infector tables;
+- censoring and study-window metadata;
 - contact matrices;
 - mobility matrices.
 
-Inputs should be validated aggressively with informative failure modes.
+Inputs should fail loudly on ambiguous units, invalid date ordering, negative counts, impossible censoring bounds, or malformed candidate groups.
 
 ## Reproducible command-line workflows
 
-Provide small CLI-style executables that can run complete analyses without editing source code.
-
-Potential workflows:
+Provide small CLI-style executables that can run complete analyses without editing source code, for example:
 
 ```text
 fit-generation-interval
@@ -431,22 +444,21 @@ Configuration should eventually be file-driven rather than compiled into example
 
 ## Reference datasets
 
-Add small, redistributable synthetic/reference datasets for integration tests and examples.
-
-Never place confidential or restricted public-health data in the repository.
+Add small, redistributable synthetic/reference datasets for integration tests and examples. Never place confidential or restricted public-health data in the repository.
 
 ## End-to-end synthetic validation
 
-Create a simulation-recovery suite:
+Create a simulation-recovery benchmark that:
 
-1. simulate an epidemic with known transmission parameters;
-2. generate transmission-pair observations;
-3. impose censoring and ascertainment;
-4. generate reporting delays;
-5. infer generation intervals;
-6. nowcast latent incidence;
-7. estimate `Rt`;
-8. compare estimates with known truth.
+1. simulates an epidemic with known transmission parameters;
+2. generates transmission-pair candidates;
+3. imposes censoring, uncertain links, and study-window ascertainment;
+4. generates reporting delays and surveillance counts;
+5. re-estimates the generation interval;
+6. estimates reporting delays;
+7. nowcasts latent incidence;
+8. estimates `Rt`;
+9. compares estimates and interval coverage with known truth.
 
 This should become one of the strongest scientific validation assets in the repository.
 
@@ -456,7 +468,7 @@ This should become one of the strongest scientific validation assets in the repo
 
 ## Distribution functions
 
-Continue strengthening numerical distribution infrastructure with explicit tests against analytic cases and independent references.
+Continue strengthening numerical distribution infrastructure with analytic and independent-reference tests.
 
 Candidate additions:
 
@@ -465,29 +477,29 @@ Candidate additions:
 - Beta distribution functions;
 - normal quantiles;
 - negative-binomial random variates;
-- robust multinomial sampling.
+- robust multinomial/categorical sampling.
 
 ## Optimization
 
-The project currently uses problem-specific root finding and Nelder-Mead where appropriate.
-
-Future work should consider a small reusable optimization layer providing:
+The project currently uses problem-specific root finding and Nelder-Mead where appropriate. A small reusable optimization layer may eventually provide:
 
 - bracketed scalar roots;
 - bounded one-dimensional minimization;
 - Nelder-Mead diagnostics;
-- convergence codes rather than only logical flags;
-- iteration and objective histories where useful.
+- convergence/status codes;
+- iteration and objective histories;
+- reusable numerical Hessian tools.
 
-Do not introduce a general optimizer abstraction unless it simplifies multiple existing inference modules.
+Do not introduce a general optimizer abstraction unless it simplifies several existing inference modules.
 
 ## Random-number generation
 
 Planned checks:
 
-- documented RNG algorithm and period;
-- reproducibility contract across supported compilers;
-- basic moment tests for Gamma, Poisson, and Dirichlet draws;
+- document the RNG algorithm and period;
+- define a reproducibility contract across supported compilers;
+- moment/distribution tests for Gamma, Poisson, and Dirichlet draws;
+- categorical sampling for latent candidate-infector workflows;
 - optional stream splitting for parallel Monte Carlo.
 
 ---
@@ -496,49 +508,41 @@ Planned checks:
 
 ## API stabilization toward 1.0
 
-Before declaring a stable `1.0.0` API:
+Before declaring `1.0.0`:
 
 - review naming conventions across all modules;
 - identify duplicated summary types;
 - standardize validity/convergence reporting;
 - standardize shape/rate terminology;
-- separate model parameters, fit objects, and Monte Carlo summaries consistently;
-- document which APIs are intended as public/stable.
+- separate model parameters, fit objects, diagnostics, and Monte Carlo summaries consistently;
+- document which APIs are intended as public/stable;
+- establish deprecation rules rather than silently renaming public procedures.
 
 ## Error handling
 
-The current library uses `error stop` for invalid caller inputs in many places.
+The library currently uses `error stop` for many invalid caller inputs. Potential improvement:
 
-Potential improvement:
-
-- optional status-return APIs for applications that cannot terminate the process;
+- optional status-return APIs for embedded applications;
 - structured error/status codes;
-- retain strict fail-fast wrappers for examples/tests.
+- strict fail-fast wrappers for examples and tests.
 
 ## Compiler matrix
 
 Expand CI beyond GNU Fortran when practical:
 
 - GNU Fortran;
-- Intel ifx if accessible;
-- LLVM/flang when sufficiently mature for the required features.
+- Intel ifx when accessible;
+- LLVM/flang when sufficiently mature for required features.
 
 Scientific tests must remain compiler-independent.
 
 ## Sanitizers and runtime diagnostics
 
-Where supported:
-
-- bounds checks;
-- floating-point exception checks;
-- uninitialized-variable diagnostics;
-- address/undefined-behavior sanitizers for mixed-language layers.
+Where supported, add floating-point exception checks, uninitialized-variable diagnostics, bounds checks, and sanitizers for future mixed-language layers.
 
 ## Packaging
 
-Investigate packaging through the Fortran Package Manager (`fpm`) while retaining CMake support if it continues to serve LAPACK and multi-language integration well.
-
-The goal should be dual usability, not replacing one build system merely for fashion.
+Investigate Fortran Package Manager (`fpm`) support while retaining CMake if it continues to serve LAPACK and multi-language integration well. The goal is dual usability rather than replacing one build system for fashion.
 
 ---
 
@@ -546,38 +550,31 @@ The goal should be dual usability, not replacing one build system merely for fas
 
 ## Python interface
 
-A Python layer is useful for data handling and visualization, but it should remain a wrapper around the Fortran scientific kernel.
+A Python layer is useful for data handling and visualization but should remain a wrapper around the Fortran scientific kernel.
 
 Preferred direction:
 
 - stable C ABI or modern F2PY-compatible wrapper layer;
 - NumPy arrays for trajectories and inference outputs;
-- Python packaging only after the Fortran API is sufficiently stable.
+- Python packaging after the Fortran API is sufficiently stable.
 
-Avoid restoring the previous repository's stale platform-specific Python extension artifact.
+Do not restore the previous repository's stale platform-specific Python extension artifact.
 
 ## R interface
 
-Potentially useful for epidemiological and statistical workflows, especially generation-interval fitting and `Rt` estimation.
+Potentially useful for epidemiological/statistical workflows, especially generation-interval fitting and `Rt` estimation.
 
-Possible implementation routes:
-
-- C ABI plus `.Call`/`.Fortran` wrappers;
-- generated shared library consumed by an R package.
-
-This is lower priority than Python unless a concrete user workflow requires it.
+Possible implementation routes include a C ABI with `.Call`/`.Fortran` wrappers or a generated shared library consumed by an R package. This remains lower priority than the scientific inference roadmap unless a concrete workflow requires it.
 
 ---
 
 # Documentation roadmap
 
-## Methods documentation
-
 Each major statistical method should eventually have a standalone note containing:
 
 - model definition;
 - parameterization;
-- likelihood/posterior;
+- likelihood or posterior;
 - numerical method;
 - uncertainty interpretation;
 - assumptions;
@@ -585,40 +582,25 @@ Each major statistical method should eventually have a standalone note containin
 - references where appropriate;
 - regression/reference values.
 
-## Architecture documentation
+An architecture document should show dependencies among compartmental models, stochastic simulation, random distributions, generation-interval inference, reporting-delay inference, renewal inference, and joint uncertainty propagation.
 
-Add an architecture document showing the dependency structure among:
-
-```text
-compartmental models
-stochastic simulation
-random distributions
-generation-interval inference
-reporting-delay inference
-renewal inference
-joint uncertainty propagation
-```
-
-## Examples as scientific demonstrations
-
-Examples should remain small and inspectable. They should demonstrate one scientifically meaningful concept each rather than becoming undocumented mini-applications.
+Examples should remain small scientific demonstrations rather than undocumented mini-applications.
 
 ---
 
 # Release roadmap
 
-## Toward 0.5
+## Maturity milestone before 1.0
 
-A `0.5.x` maturity milestone in the new roadmap sense should require:
+Before API stabilization, the project should complete at least:
 
-- mixed-censoring bootstrap uncertainty;
-- uncertain infector handling;
+- study-window truncation correction;
+- uncertain-infector bootstrap propagation;
 - reporting-delay estimation from data;
 - joint delay-distribution uncertainty propagation;
-- improved real-data input contracts;
+- overdispersed full-pipeline inference;
+- real-data input contracts;
 - end-to-end synthetic recovery tests.
-
-The project version is already numerically beyond `0.5`; this milestone therefore describes maturity, not a literal future semantic version number.
 
 ## Toward 1.0.0
 
@@ -628,7 +610,7 @@ Minimum criteria:
 
 - documented public modules and stable naming conventions;
 - deterministic, stochastic, surveillance, and generation-interval components covered by reference/regression tests;
-- explicit uncertainty propagation for all major fitted upstream quantities;
+- explicit uncertainty propagation for major fitted upstream quantities;
 - real-data interfaces with strong validation;
 - stable compiler/build support;
 - no known silent numerical-failure modes;
@@ -639,31 +621,31 @@ Minimum criteria:
 
 # Explicit non-goals
 
-The project should avoid several tempting but low-value directions unless a concrete scientific need appears:
+Avoid unless a concrete scientific requirement appears:
 
-- adding arbitrary compartment models solely to increase model count;
+- arbitrary compartment models solely to increase model count;
 - opaque machine-learning prediction models without epidemiological structure;
 - hidden automatic model selection;
 - silently substituting serial intervals for generation intervals;
-- reporting `Rt` point estimates without corresponding uncertainty semantics;
+- `Rt` point estimates without explicit uncertainty semantics;
 - platform-specific compiled binaries committed to source control;
-- Python-first architecture that makes the Fortran core secondary.
+- a Python-first architecture that makes the Fortran core secondary.
 
 ---
 
 # Immediate next sequence
 
-The recommended development order from the current `0.19.0` baseline is:
+The recommended development order from the current `0.21.0` baseline is:
 
-1. mixed finite/right-censored generation-interval bootstrap into `Rt`;
-2. uncertain infector identity;
-3. study-window truncation correction;
-4. reporting-triangle delay estimation;
-5. reporting-delay distribution uncertainty propagation;
-6. negative-binomial integration with the full nowcasting pipeline;
-7. end-to-end synthetic simulation/recovery benchmark;
-8. real-data interfaces;
+1. **study-window/truncation correction for transmission-pair inference**;
+2. infectee-level bootstrap propagation for uncertain infector identity;
+3. reporting-triangle delay estimation;
+4. reporting-delay distribution uncertainty propagation;
+5. negative-binomial integration with the full nowcasting pipeline;
+6. end-to-end synthetic simulation/recovery benchmark;
+7. real-data interfaces and file-driven workflows;
+8. susceptible depletion/importation extensions;
 9. spatial/metapopulation modelling;
-10. API consolidation and interoperability work.
+10. API consolidation, packaging, and interoperability work.
 
-This order keeps the project centered on a single coherent goal: **transparent epidemiological inference in which the data-generating process and every important source of uncertainty remain visible from raw surveillance data to reproduction-number estimates.**
+This order keeps the project centered on one coherent goal: **transparent epidemiological inference in which the data-generating process and every important source of uncertainty remain visible from transmission-pair and surveillance data to reproduction-number estimates.**
